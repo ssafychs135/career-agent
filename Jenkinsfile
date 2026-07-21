@@ -3,7 +3,12 @@
 // 상대 바인드마운트가 host 데몬에서 올바른 host 경로로 해석되게).
 pipeline {
   agent any
-  environment { DEPLOY_DIR = '/home/ubuntu/career-agent' }
+  environment {
+    DEPLOY_DIR = '/home/ubuntu/career-agent'
+    // Jenkins가 uid 1001로 돌며 HOME 미설정 → docker buildx가 /.docker에 쓰려다 거부됨.
+    // 쓰기가능한 Jenkins 홈 하위로 지정(빌드 시 buildx 상태 저장 위치).
+    DOCKER_CONFIG = '/var/jenkins_home/.docker'
+  }
   stages {
     stage('sync') {
       // Jenkins가 빌드한 정확한 커밋으로 배포 디렉터리 동기화(TOCTOU 방지). .env는 untracked라 보존.
@@ -39,7 +44,10 @@ pipeline {
     }
     stage('CD deploy') {
       steps {
-        sh 'cd ${DEPLOY_DIR} && docker compose --env-file .env up -d --build'
+        sh '''
+          mkdir -p "$DOCKER_CONFIG"
+          cd ${DEPLOY_DIR} && docker compose --env-file .env up -d --build
+        '''
       }
     }
     stage('smoke') {
