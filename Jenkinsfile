@@ -52,11 +52,18 @@ pipeline {
     }
     stage('smoke') {
       // nginx 컨테이너 안에서 확인(localhost=nginx:80, /api는 backend로 프록시).
+      // up -d 직후 backend(uvicorn) 부팅 대기 — health가 200 될 때까지 재시도(최대 ~40s).
       steps {
         sh '''
           cd ${DEPLOY_DIR}
-          docker compose --env-file .env exec -T nginx wget -qO- http://localhost/api/health | grep -q '"status":"ok"'
+          ok=
+          for i in $(seq 1 20); do
+            if docker compose --env-file .env exec -T nginx wget -qO- http://localhost/api/health 2>/dev/null | grep -q '"status":"ok"'; then ok=1; break; fi
+            sleep 2
+          done
+          [ "$ok" = 1 ] || { echo "backend health 미준비"; exit 1; }
           docker compose --env-file .env exec -T nginx wget -qO- http://localhost/ | grep -q '<title>career-agent</title>'
+          echo "smoke ok"
         '''
       }
     }
