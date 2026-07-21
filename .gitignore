@@ -1,0 +1,13 @@
+# secrets / env
+.env
+*.local
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+# node
+node_modules/
+frontend/dist/
+# misc
+.DS_Store
