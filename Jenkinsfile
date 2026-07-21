@@ -63,6 +63,13 @@ pipeline {
           done
           [ "$ok" = 1 ] || { echo "backend health 미준비"; exit 1; }
           docker compose --env-file .env exec -T nginx wget -qO- http://127.0.0.1/ | grep -q '<title>career-agent</title>'
+          # (가산) DB 헬스 — postgres·migrate 배포 회귀 방지. 기존 nginx-exec wget 형태 유지(curl 금지).
+          dbok=
+          for i in $(seq 1 10); do
+            if docker compose --env-file .env exec -T nginx wget -qO- http://127.0.0.1/api/db/health 2>/dev/null | grep -q '"ok":true'; then dbok=1; break; fi
+            sleep 3
+          done
+          [ "$dbok" = 1 ] || { echo "db health 미준비"; exit 1; }
           echo "smoke ok"
         '''
       }
