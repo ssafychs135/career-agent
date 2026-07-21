@@ -166,12 +166,21 @@ export default function Explorer() {
           <button className="mobile-back" onClick={() => setSelectedCompany(null)} style={{ marginBottom: 8 }}>
             ← 기업
           </button>
-          <h2 style={{ fontSize: "1.05rem" }}>공고</h2>
-          <div className="caption" style={{ marginTop: 6 }}>
-            {selectedCompany
-              ? `${selectedCompany}${region ? " · " + region : ""} · ${companyJobs.length}건`
-              : "기업을 선택하세요"}
-          </div>
+          {selectedCompany ? (
+            <>
+              {/* 어느 기업의 공고인지 이름을 헤더로 명시 */}
+              <div className="caption" style={{ marginBottom: 2 }}>공고</div>
+              <h2 style={{ fontSize: "1.15rem" }}>{selectedCompany}</h2>
+              <div className="caption" style={{ marginTop: 4 }}>
+                {region ? region + " · " : ""}공고 {companyJobs.length}건
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 style={{ fontSize: "1.05rem" }}>공고</h2>
+              <div className="caption" style={{ marginTop: 6 }}>← 왼쪽에서 기업을 선택하세요</div>
+            </>
+          )}
         </div>
         <div className="col-list">
           {companyJobs.map((j, i) => {

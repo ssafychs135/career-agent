@@ -120,7 +120,7 @@ export function ResearchPanel({
           alignItems: "center",
           justifyContent: "space-between",
           gap: "var(--sp-3)",
-          marginBottom: hasBody || jrStatus ? "var(--sp-4)" : 0,
+          marginBottom: "var(--sp-4)",
         }}
       >
         <h2 style={{ fontSize: "1.1rem" }}>🔍 리서치</h2>
@@ -178,6 +178,8 @@ export function ResearchPanel({
           className={hasBody ? "" : "btn-primary"}
           onClick={() => onResearch(jrStatus === "done")}
           disabled={busy}
+          // 분석 내용과 액션 버튼을 확실히 분리(§16 여백으로 그룹핑)
+          style={{ marginTop: hasBody || jrStatus ? "var(--sp-3)" : 0 }}
           // Momentum bounce — this fires only from the user's own press (§4).
           whileTap={{ scale: 0.97 }}
           transition={SPRING_MOMENTUM}

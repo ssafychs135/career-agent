@@ -107,7 +107,15 @@ export default function JobDetailView({ source, jobId }: { source: string; jobId
       </div>
 
       {job.summary && (
-        <p style={{ color: "var(--text-2)", lineHeight: 1.65, maxWidth: "64ch", marginBottom: "var(--sp-5)" }}>
+        <p
+          style={{
+            color: "var(--text-2)",
+            lineHeight: 1.7,
+            maxWidth: "64ch",
+            marginBottom: "var(--sp-5)",
+            whiteSpace: "pre-wrap", // 요약의 1·2·3 줄바꿈(\n) 보존
+          }}
+        >
           {job.summary}
         </p>
       )}
