@@ -9,12 +9,15 @@ const DEBOUNCE_MS = 250;
 const EMPTY = { status: "", source: "", location: "", tech: "", keyword: "" };
 type Filters = typeof EMPTY;
 
-/** Free-text filters (open-ended values → live text, not a dropdown). */
-const TEXT_FILTERS: { key: keyof Filters; label: string; testid: string; grow?: boolean }[] = [
-  { key: "keyword", label: "제목·회사·요약 검색", testid: "filter-keyword", grow: true },
-  { key: "location", label: "지역", testid: "filter-location" },
-  { key: "tech", label: "기술", testid: "filter-tech" },
-];
+/** 시/도 단위 지역 토큰. "서울 강남구"→"서울", "서울, 부산"→["서울","부산"].
+ *  locations ILIKE %지역% 이라 시/도 선택으로 해당 지역 전체가 매칭된다. */
+function regionsOf(loc: string | null): string[] {
+  if (!loc) return [];
+  return loc
+    .split(",")
+    .map((part) => part.trim().split(/\s+/)[0])
+    .filter(Boolean);
+}
 
 export default function JobsList() {
   const [filters, setFilters] = useState<Filters>(EMPTY);
@@ -25,6 +28,7 @@ export default function JobsList() {
   // Dropdown options accumulate from real results — always match the data, no extra query.
   const [statusOpts, setStatusOpts] = useState<string[]>([]);
   const [sourceOpts, setSourceOpts] = useState<string[]>([]);
+  const [locationOpts, setLocationOpts] = useState<string[]>([]);
   const first = useRef(true);
 
   const load = useCallback((f: Filters, off: number) => {
@@ -37,6 +41,7 @@ export default function JobsList() {
         setError("");
         setStatusOpts((prev) => union(prev, p.items.map((j) => j.status)));
         setSourceOpts((prev) => union(prev, p.items.map((j) => j.source)));
+        setLocationOpts((prev) => union(prev, p.items.flatMap((j) => regionsOf(j.locations))));
       })
       .catch(() => setError("불러오기 실패"));
   }, []);
@@ -110,16 +115,26 @@ export default function JobsList() {
             </option>
           ))}
         </select>
-        {TEXT_FILTERS.filter((f) => f.key === "location" || f.key === "tech").map((f) => (
-          <input
-            key={f.testid}
-            data-testid={f.testid}
-            placeholder={f.label}
-            value={filters[f.key]}
-            onChange={(e) => setFilter(f.key, e.target.value)}
-            style={{ flex: "0 1 130px", minWidth: 0 }}
-          />
-        ))}
+        <select
+          data-testid="filter-location"
+          value={filters.location}
+          onChange={(e) => setFilter("location", e.target.value)}
+          aria-label="지역"
+        >
+          <option value="">지역 전체</option>
+          {locationOpts.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+        <input
+          data-testid="filter-tech"
+          placeholder="기술"
+          value={filters.tech}
+          onChange={(e) => setFilter("tech", e.target.value)}
+          style={{ flex: "0 1 130px", minWidth: 0 }}
+        />
       </div>
 
       <div
