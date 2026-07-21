@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException
 from app import db
 from app.claude_client import run_claude
 from app.routers import db as db_router
+from app.routers import jobs as jobs_router
 
 
 @asynccontextmanager
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="career-agent", lifespan=lifespan)
 app.include_router(db_router.router)
+app.include_router(jobs_router.router)
 
 
 @app.get("/api/health")

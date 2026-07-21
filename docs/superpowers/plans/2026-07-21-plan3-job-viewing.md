@@ -92,7 +92,9 @@ from app.jobs_repo import build_list_query
 
 def test_build_query_no_filters():
     sql, params = build_list_query(limit=20, offset=0)
-    assert "WHERE" not in sql
+    # _SELECT의 EXISTS 서브쿼리에는 WHERE가 있으므로, 필터 WHERE 부재는
+    # 최상위 "FROM jobs" 이후 구간(필터절+ORDER BY+LIMIT)에서만 확인한다.
+    assert "WHERE" not in sql.split("FROM jobs", 1)[1]
     assert "FROM jobs" in sql
     assert "COUNT(*) OVER()" in sql
     assert "has_company_research" in sql
@@ -137,7 +139,7 @@ def test_build_query_pagination_positions():
 
 def test_build_query_ignores_none_and_empty():
     sql, params = build_list_query(status=None, source="", keyword=None, limit=20, offset=0)
-    assert "WHERE" not in sql
+    assert "WHERE" not in sql.split("FROM jobs", 1)[1]
     assert params == [20, 0]
 ```
 
