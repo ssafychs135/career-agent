@@ -28,26 +28,33 @@ n8n으로 운영 중인 취업 자동화 시스템을, **독립 프론트엔드 
 ```
               Cloudflare (agent.chs135.com, Google Access)
                             │
-                     a1-cloudflared (기존 터널, 라우트 추가)
+                     a1-cloudflared 터널 → localhost:80
                             │
-                  ┌─────────┴──────────┐
-            frontend(정적, Caddy)   backend :8000 (FastAPI, 호스트 systemd)
-                                        │
-                  ┌─────────────────────┼──────────────────┐
-            Postgres(공유 jobs DB)   claude -p (구독인증)   Discord 웹훅
-            n8n과 동일 인스턴스      /home/ubuntu/.local/bin/claude
+                     nginx (RP, 경로 라우팅)
+                     /            /api/*          (…향후 /api/search 등)
+             frontend(정적)   backend :8000 (FastAPI, 호스트 systemd)
+             (독립 배포)          │
+                          ┌───────┼──────────────┐
+                    Postgres    claude -p       Discord 웹훅
+                 (공유 jobs DB)  (구독인증)
+                                /home/ubuntu/.local/bin/claude
 ```
+
+**리버스 프록시 = nginx.** 두 트리거(백그라운드 워커 등 **다중 백엔드 서비스** + **프론트 독립 배포**)가 곧 오므로 기반부터 nginx를 둔다. cloudflared 터널이 `localhost:80`(nginx)로 들어오고, nginx가 `/`=프론트 정적, `/api/*`=백엔드로 경로 라우팅. 이관으로 서비스가 늘면 `/api/search`→search 서비스처럼 nginx에 라우트만 추가. (TLS·WAF·레이트리밋은 Cloudflare 엣지가 처리하므로 nginx는 순수 라우팅/정적 서빙 담당. nginx는 취준 시장가치도 고려한 선택.)
 
 **컴포넌트 (전부 A1, n8n 밖):**
 
 | 컴포넌트 | 형태 | 책임 | 의존 |
 |---|---|---|---|
+| nginx (RP) | A1 리버스 프록시 | cloudflared 진입점, `/`→프론트 정적·`/api/*`→백엔드 경로 라우팅 | frontend dist, backend |
 | backend | FastAPI, **호스트 systemd 서비스**(ubuntu 유저, uvicorn :8000) | API 제공, 리서치 오케스트레이션, DB 접근, Discord 푸시 | Postgres(localhost:5432), claude -p, Discord |
-| frontend | React + Vite + TS, 정적 빌드 | 공고 조회·필터·리서치 열람/트리거 UI | backend API |
+| frontend | React + Vite + TS, 정적 빌드 | 공고 조회·필터·리서치 열람/트리거 UI | backend API(HTTP) |
 | research runner | 백엔드 내부 모듈(비동기 태스크) | claude -p 서브프로세스 호출·파싱·저장 | claude -p, DB |
 | DB(공유) | 기존 n8n Postgres | jobs 읽기 + research 테이블 읽기/쓰기 | — |
 
-**백엔드가 호스트 서비스인 이유:** claude 구독 인증 자격증명(`~/.claude/.credentials.json`)이 ubuntu 홈에 있어, 컨테이너로 싸면 자격증명·바이너리 마운트가 취약하고 토큰 갱신이 깨질 수 있다. 호스트 systemd 서비스(ubuntu 유저)면 claude·Postgres·Discord에 자연스럽게 접근한다. "독립 프론트/백"은 유지(프론트=정적, 백=호스트 서비스로 분리 배포).
+**프론트·백 독립 배포:** 프론트(dist)와 백엔드(uvicorn)는 **각각 독립 빌드·배포**되고 nginx가 앞에서 합친다. 프론트만 재배포해도 백엔드 무중단, 반대도 동일. 향후 백엔드가 여러 서비스로 쪼개지면 nginx 라우트만 추가.
+
+**백엔드가 호스트 서비스인 이유:** claude 구독 인증 자격증명(`~/.claude/.credentials.json`)이 ubuntu 홈에 있어, 컨테이너로 싸면 자격증명·바이너리 마운트가 취약하고 토큰 갱신이 깨질 수 있다. 호스트 systemd 서비스(ubuntu 유저)면 claude·Postgres·Discord에 자연스럽게 접근한다.
 
 ## 데이터 모델
 
@@ -147,13 +154,14 @@ CREATE TABLE job_research (
 
 - **공고 리스트:** 카드/테이블, 필터(상태·소스·지역·기술·keyword — 09 뷰어 기능 계승), 페이지네이션, "리서치 완료만" 토글.
 - **공고 상세:** 공고 정보 + 🔍 기업 리서치(개요·안정성) + 공고 리서치(기술·직무) + 근거 링크. 리서치 없으면 **"리서치" 버튼** → `POST /api/research/job` → "리서치 중…" 스피너(폴링) → 완료 시 표시.
-- API 클라이언트만 백엔드와 통신(완전 분리). 정적 빌드 → Caddy 서빙.
+- API 클라이언트만 백엔드와 통신(완전 분리). 정적 빌드(dist) → **nginx가 서빙, 독립 배포**.
 
 ## 배포 토폴로지
 
-- **호스트네임:** `agent.chs135.com` (Cloudflare 터널 라우트 추가, **Google Access** 뒤). `/api`도 Access 뒤.
-- **backend:** systemd 서비스(ubuntu 유저, uvicorn :8000). Postgres localhost:5432, claude 구독 인증, Discord 웹훅 접근.
-- **frontend:** Vite 정적 빌드 → Caddy가 서빙(`/` 정적, `/api` → backend:8000 프록시).
+- **호스트네임:** `agent.chs135.com` (Cloudflare 터널 라우트 추가, **Google Access** 뒤). cloudflared → `localhost:80`(nginx). `/api`도 Access 뒤.
+- **nginx(RP):** cloudflared 진입점. `/`=프론트 정적(dist 디렉터리 서빙), `/api/*`=`proxy_pass` → backend:8000. 서비스 추가 시 `location /api/<svc>` 블록만 추가.
+- **backend:** systemd 서비스(ubuntu 유저, uvicorn :8000). Postgres localhost:5432, claude 구독 인증, Discord 웹훅 접근. **독립 배포**(재시작해도 프론트·nginx 무관).
+- **frontend:** Vite 정적 빌드(dist) → nginx가 서빙. **독립 배포**(빌드 산출물만 교체, 백엔드 무중단). *cloudflared 터널 구조상 프론트는 A1의 nginx가 서빙; 향후 Cloudflare Pages로 옮기려면 `/api` 라우팅을 Workers/룰로 재구성 필요(지금은 안 함).*
 - **Postgres:** 기존 n8n 인스턴스 공유.
 - **CI/CD:** 이번 범위 밖. 우선 수동 배포(스크립트), 나중에 Jenkins 파이프라인 추가 가능.
 
