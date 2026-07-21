@@ -387,9 +387,14 @@ button:disabled {
 .item:hover {
   background: var(--scrim);
 }
+/* 선택된 항목은 명확하게: 좌측 액센트 바 + 강한 배경 + 액센트 이름 */
 .item.on {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: inset 3px 0 0 0 var(--accent);
+}
+.item.on .name {
+  color: var(--accent);
 }
 .item:active {
   transform: scale(0.99);

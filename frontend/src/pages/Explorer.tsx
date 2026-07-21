@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { motion } from "motion/react";
 import { getJobs, type JobSummary } from "../api";
-import { stagger } from "../design/springs";
 import JobDetailView from "./JobDetailView";
 
 const PAGE = 100; // /api/jobs limit cap
@@ -88,13 +86,14 @@ export default function Explorer() {
   useEffect(() => {
     if (!loaded || !source || !jobId) return;
     const j = jobs.find((x) => x.source === source && x.job_id === jobId);
-    if (j?.company) setSelectedCompany(j.company);
+    // 회사명은 항상 trim 정규화(그룹핑·선택·필터가 동일 키를 쓰도록)
+    if (j?.company) setSelectedCompany(j.company.trim());
   }, [loaded, source, jobId, jobs]);
 
   const companyJobs = useMemo(() => {
     if (!selectedCompany) return [];
     return jobs.filter(
-      (j) => j.company === selectedCompany && (!region || regionsOf(j.locations).includes(region)),
+      (j) => j.company?.trim() === selectedCompany && (!region || regionsOf(j.locations).includes(region)),
     );
   }, [jobs, selectedCompany, region]);
 
@@ -139,24 +138,29 @@ export default function Explorer() {
           {loaded && !error && visibleCompanies.length === 0 && (
             <span className="caption">기업이 없습니다</span>
           )}
-          {visibleCompanies.map((c, i) => (
-            <motion.button
-              key={c.name}
-              className={`item${c.name === selectedCompany ? " on" : ""}`}
-              onClick={() => setSelectedCompany(c.name)}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={stagger(Math.min(i, 12))}
-            >
-              <div className="row">
-                <span className="name">{c.name}</span>
-                {c.hasResearch && <span className="pill pill-accent">기업✓</span>}
-              </div>
-              <div className="caption" style={{ marginTop: 2 }}>
-                {c.regions.slice(0, 2).join("·")} · 공고 {c.count}
-              </div>
-            </motion.button>
-          ))}
+          {visibleCompanies.map((c) => {
+            const on = c.name === selectedCompany;
+            return (
+              <button
+                key={c.name}
+                className={`item${on ? " on" : ""}`}
+                aria-current={on ? "true" : undefined}
+                onClick={() => setSelectedCompany(c.name)}
+              >
+                <div className="row">
+                  <span className="name">{c.name}</span>
+                  {on ? (
+                    <span className="pill pill-accent">선택됨</span>
+                  ) : (
+                    c.hasResearch && <span className="pill pill-accent">기업✓</span>
+                  )}
+                </div>
+                <div className="caption" style={{ marginTop: 2 }}>
+                  {c.regions.slice(0, 2).join("·")} · 공고 {c.count}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -183,17 +187,15 @@ export default function Explorer() {
           )}
         </div>
         <div className="col-list">
-          {companyJobs.map((j, i) => {
+          {companyJobs.map((j) => {
             const on = j.source === source && j.job_id === jobId;
             return (
-              <motion.button
+              <button
                 key={`${j.source}:${j.job_id}`}
                 data-testid="job-link"
                 className={`item${on ? " on" : ""}`}
+                aria-current={on ? "true" : undefined}
                 onClick={() => navigate(`/jobs/${j.source}/${j.job_id}`)}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={stagger(Math.min(i, 12))}
               >
                 <div className="name">{j.title}</div>
                 <div className="row" style={{ marginTop: 6 }}>
@@ -203,7 +205,7 @@ export default function Explorer() {
                     {j.has_job_research && <span className="pill pill-accent">분석</span>}
                   </span>
                 </div>
-              </motion.button>
+              </button>
             );
           })}
         </div>
