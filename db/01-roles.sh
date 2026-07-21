@@ -2,6 +2,7 @@
 # career-agent Postgres 최초 기동 시 읽기전용 롤 생성(스키마는 Alembic이 소유).
 # n8n-pjt/db/roles.sh 재현. 비밀번호는 env(JOBS_RO_PASSWORD), 하드코딩 금지.
 set -e
+: "${JOBS_RO_PASSWORD:?JOBS_RO_PASSWORD is required}"
 psql -v ON_ERROR_STOP=1 -v ro_pw="${JOBS_RO_PASSWORD}" \
      --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-'EOSQL'
   DO $$ BEGIN
