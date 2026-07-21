@@ -43,15 +43,15 @@ test("renders jobs and links to detail", async () => {
   expect(screen.getByTestId("job-total").textContent).toContain("1");
 });
 
-test("applies keyword filter on search", async () => {
+test("applies keyword filter live (no submit button)", async () => {
   render(
     <MemoryRouter>
       <JobsList />
     </MemoryRouter>,
   );
   await waitFor(() => expect(getJobs).toHaveBeenCalled());
+  // Typing alone reloads the list (debounced) — no search button to press.
   fireEvent.change(screen.getByTestId("filter-keyword"), { target: { value: "backend" } });
-  fireEvent.click(screen.getByTestId("search-btn"));
   await waitFor(() =>
     expect(getJobs).toHaveBeenLastCalledWith(expect.objectContaining({ keyword: "backend", offset: 0 })),
   );

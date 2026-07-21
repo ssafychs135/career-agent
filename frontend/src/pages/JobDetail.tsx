@@ -83,7 +83,16 @@ export default function JobDetail() {
         <div className="caption" data-testid="job-company" style={{ marginBottom: 4 }}>
           {job.company}
         </div>
-        <h1 data-testid="job-title">{job.title}</h1>
+        <h1
+          data-testid="job-title"
+          style={{
+            fontSize: "clamp(2.1rem, 1.3rem + 3.6vw, 3.4rem)",
+            lineHeight: 1.04,
+            letterSpacing: "-0.03em",
+          }}
+        >
+          {job.title}
+        </h1>
         <div
           style={{
             display: "flex",

@@ -1,53 +1,62 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
 import { getJobs, type JobSummary } from "../api";
-import { SPRING_UI, stagger } from "../design/springs";
+import { stagger } from "../design/springs";
 
 const LIMIT = 20;
+const DEBOUNCE_MS = 250;
 const EMPTY = { status: "", source: "", location: "", tech: "", keyword: "" };
 type Filters = typeof EMPTY;
 
-const FILTERS: { key: keyof Filters; label: string; testid: string; grow?: boolean }[] = [
+/** Free-text filters (open-ended values → live text, not a dropdown). */
+const TEXT_FILTERS: { key: keyof Filters; label: string; testid: string; grow?: boolean }[] = [
   { key: "keyword", label: "제목·회사·요약 검색", testid: "filter-keyword", grow: true },
-  { key: "status", label: "상태", testid: "filter-status" },
-  { key: "source", label: "소스", testid: "filter-source" },
   { key: "location", label: "지역", testid: "filter-location" },
   { key: "tech", label: "기술", testid: "filter-tech" },
 ];
 
 export default function JobsList() {
-  const [form, setForm] = useState<Filters>(EMPTY);
-  const [applied, setApplied] = useState<Filters>(EMPTY);
+  const [filters, setFilters] = useState<Filters>(EMPTY);
   const [offset, setOffset] = useState(0);
   const [items, setItems] = useState<JobSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
+  // Dropdown options accumulate from real results — always match the data, no extra query.
+  const [statusOpts, setStatusOpts] = useState<string[]>([]);
+  const [sourceOpts, setSourceOpts] = useState<string[]>([]);
+  const first = useRef(true);
 
-  const load = useCallback(() => {
-    const params: Record<string, string | number> = { limit: LIMIT, offset };
-    for (const [k, v] of Object.entries(applied)) if (v) params[k] = v;
+  const load = useCallback((f: Filters, off: number) => {
+    const params: Record<string, string | number> = { limit: LIMIT, offset: off };
+    for (const [k, v] of Object.entries(f)) if (v) params[k] = v;
     getJobs(params)
       .then((p) => {
         setItems(p.items);
         setTotal(p.total);
         setError("");
+        setStatusOpts((prev) => union(prev, p.items.map((j) => j.status)));
+        setSourceOpts((prev) => union(prev, p.items.map((j) => j.source)));
       })
       .catch(() => setError("불러오기 실패"));
-  }, [applied, offset]);
+  }, []);
 
+  // Live filtering — reload whenever a filter or the page changes (§1 response).
+  // Text typing is debounced; the first load fires immediately.
   useEffect(() => {
-    load();
-  }, [load]);
+    if (first.current) {
+      first.current = false;
+      load(filters, offset);
+      return;
+    }
+    const t = setTimeout(() => load(filters, offset), DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [filters, offset, load]);
 
-  const onSearch = () => {
+  // Any filter change returns to page 1.
+  const setFilter = (k: keyof Filters, v: string) => {
     setOffset(0);
-    setApplied(form);
-  };
-  const set = (k: keyof Filters) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm({ ...form, [k]: e.target.value });
-  const onKey = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") onSearch();
+    setFilters((f) => ({ ...f, [k]: v }));
   };
 
   const page = Math.floor(offset / LIMIT) + 1;
@@ -57,7 +66,7 @@ export default function JobsList() {
     <main style={{ maxWidth: 960, margin: "0 auto", padding: "var(--sp-6) clamp(1rem, 4vw, 2rem)" }}>
       <h1 style={{ marginBottom: "var(--sp-5)" }}>공고</h1>
 
-      {/* Translucent filter toolbar — a light material for interactive controls (§12) */}
+      {/* Translucent filter toolbar — changes apply live, no submit (§1) */}
       <div
         className="card"
         style={{
@@ -68,20 +77,49 @@ export default function JobsList() {
           marginBottom: "var(--sp-4)",
         }}
       >
-        {FILTERS.map((f) => (
+        <input
+          data-testid="filter-keyword"
+          placeholder="제목·회사·요약 검색"
+          value={filters.keyword}
+          onChange={(e) => setFilter("keyword", e.target.value)}
+          style={{ flex: "1 1 240px", minWidth: 0 }}
+        />
+        <select
+          data-testid="filter-source"
+          value={filters.source}
+          onChange={(e) => setFilter("source", e.target.value)}
+          aria-label="소스"
+        >
+          <option value="">소스 전체</option>
+          {sourceOpts.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+        <select
+          data-testid="filter-status"
+          value={filters.status}
+          onChange={(e) => setFilter("status", e.target.value)}
+          aria-label="상태"
+        >
+          <option value="">상태 전체</option>
+          {statusOpts.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+        {TEXT_FILTERS.filter((f) => f.key === "location" || f.key === "tech").map((f) => (
           <input
             key={f.testid}
             data-testid={f.testid}
             placeholder={f.label}
-            value={form[f.key]}
-            onChange={set(f.key)}
-            onKeyDown={onKey}
-            style={{ flex: f.grow ? "1 1 240px" : "0 1 130px", minWidth: 0 }}
+            value={filters[f.key]}
+            onChange={(e) => setFilter(f.key, e.target.value)}
+            style={{ flex: "0 1 130px", minWidth: 0 }}
           />
         ))}
-        <button data-testid="search-btn" className="btn-primary" onClick={onSearch}>
-          검색
-        </button>
       </div>
 
       <div
@@ -114,11 +152,7 @@ export default function JobsList() {
             <Link
               data-testid="job-link"
               to={`/jobs/${j.source}/${j.job_id}`}
-              style={{
-                display: "block",
-                textDecoration: "none",
-                color: "inherit",
-              }}
+              style={{ display: "block", textDecoration: "none", color: "inherit" }}
               className="card"
             >
               <div
@@ -188,4 +222,11 @@ export default function JobsList() {
       </div>
     </main>
   );
+}
+
+/** Merge new non-empty string values into a sorted distinct option list. */
+function union(prev: string[], next: (string | null)[]): string[] {
+  const set = new Set(prev);
+  for (const v of next) if (v) set.add(v);
+  return [...set].sort();
 }
