@@ -1,0 +1,20 @@
+services:
+  backend:
+    build: ./backend
+    user: "${HOST_UID:-1001}:${HOST_UID:-1001}"   # A1 ubuntu uid (Task 6에서 검증)
+    volumes:
+      - /home/ubuntu/.claude:/home/appuser/.claude:rw
+      - /home/ubuntu/.claude.json:/home/appuser/.claude.json:rw
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    ports:
+      - "127.0.0.1:80:80"    # cloudflared만 접근(로컬 바인딩, 인터넷 직접노출 없음)
+    depends_on:
+      - backend
+    restart: unless-stopped
