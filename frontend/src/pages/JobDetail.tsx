@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getJob, type JobDetailResponse } from "../api";
+import { ResearchPanel } from "../ResearchPanel";
 
 export default function JobDetail() {
   const { source, jobId } = useParams();
@@ -26,7 +27,7 @@ export default function JobDetail() {
     return <main style={{ padding: 24, fontFamily: "sans-serif" }}>불러오는 중…</main>;
   }
 
-  const { job, companyResearch, jobResearch } = data;
+  const { job } = data;
 
   return (
     <main style={{ padding: 24, fontFamily: "sans-serif" }}>
@@ -44,11 +45,13 @@ export default function JobDetail() {
           </a>
         </p>
       )}
-      <h2>리서치</h2>
-      <ul>
-        <li data-testid="research-company">기업 리서치: {companyResearch ? "있음" : "없음"}</li>
-        <li data-testid="research-job">공고 리서치: {jobResearch ? "있음" : "없음"}</li>
-      </ul>
+      <ResearchPanel
+        source={source!}
+        jobId={jobId!}
+        companyResearch={data.companyResearch as any}
+        jobResearch={data.jobResearch as any}
+        refetch={() => getJob(source!, jobId!) as any}
+      />
     </main>
   );
 }
