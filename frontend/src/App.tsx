@@ -1,28 +1,19 @@
-import { useEffect, useState } from "react";
-import { getHealth, getClaudeCheck } from "./api";
+import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import Home from "./pages/Home";
+import JobsList from "./pages/JobsList";
+import JobDetail from "./pages/JobDetail";
 
 export default function App() {
-  const [health, setHealth] = useState("…");
-  const [claude, setClaude] = useState("…");
-
-  useEffect(() => {
-    getHealth()
-      .then((r) => setHealth(r.status))
-      .catch(() => setHealth("error"));
-    getClaudeCheck()
-      .then((r) => setClaude(r.reply))
-      .catch(() => setClaude("error"));
-  }, []);
-
   return (
-    <main style={{ fontFamily: "sans-serif", padding: 24 }}>
-      <h1>career-agent</h1>
-      <p>
-        API health: <span data-testid="health">{health}</span>
-      </p>
-      <p>
-        claude: <span data-testid="claude">{claude}</span>
-      </p>
-    </main>
+    <BrowserRouter>
+      <nav style={{ padding: "8px 24px", borderBottom: "1px solid #ddd", fontFamily: "sans-serif" }}>
+        <Link to="/">home</Link> · <Link to="/jobs">공고</Link>
+      </nav>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/jobs" element={<JobsList />} />
+        <Route path="/jobs/:source/:jobId" element={<JobDetail />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
