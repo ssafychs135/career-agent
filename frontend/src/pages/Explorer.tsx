@@ -99,8 +99,11 @@ export default function Explorer() {
     );
   }, [jobs, selectedCompany, region]);
 
+  // 좁은 화면 단일-패널 드릴다운: 선택 상태에서 파생(별도 state 불필요).
+  const mobilePane = source && jobId ? "detail" : selectedCompany ? "jobs" : "companies";
+
   return (
-    <div className="explorer">
+    <div className="explorer" data-mobile={mobilePane}>
       {/* 1) 기업 — 기업명·지역 필터 */}
       <div className="col col-companies">
         <div className="col-head">
@@ -161,6 +164,9 @@ export default function Explorer() {
       {/* 2) 공고 — 선택 기업 + 지역으로 걸러진 공고 */}
       <div className="col col-jobs">
         <div className="col-head">
+          <button className="mobile-back" onClick={() => setSelectedCompany(null)} style={{ marginBottom: 8 }}>
+            ← 기업
+          </button>
           <h2 style={{ fontSize: "1.05rem" }}>공고</h2>
           <div className="caption" style={{ marginTop: 6 }}>
             {selectedCompany
@@ -198,7 +204,12 @@ export default function Explorer() {
       {/* 3) 공고 내용 · 분석 */}
       <div className="detail-pane">
         {source && jobId ? (
-          <JobDetailView source={source} jobId={jobId} />
+          <>
+            <button className="mobile-back" onClick={() => navigate("/jobs")} style={{ marginBottom: 16 }}>
+              ← 공고
+            </button>
+            <JobDetailView source={source} jobId={jobId} />
+          </>
         ) : (
           <div className="caption" style={{ margin: "var(--sp-6)" }}>
             기업과 공고를 선택하면 내용과 분석이 여기에 표시됩니다.

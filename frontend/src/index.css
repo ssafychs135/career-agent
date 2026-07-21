@@ -409,23 +409,57 @@ button:disabled {
   padding: 28px clamp(20px, 4vw, 44px);
 }
 
-/* Narrow: stack the three panels vertically; the content area scrolls. */
-@media (max-width: 1000px) {
-  .shell {
-    height: auto;
-    min-height: 100vh;
+/* Back affordance — only shown in the mobile single-pane drill-down. */
+.mobile-back {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* Medium: keep all three panels, tighten the two list columns so they fit. */
+@media (max-width: 1080px) {
+  .explorer {
+    grid-template-columns: 244px 288px 1fr;
   }
+}
+
+/* Small: single-pane drill-down (기업 → 공고 → 상세) with back buttons.
+   Which pane shows is driven by [data-mobile] set from the selection state. */
+@media (max-width: 900px) {
   .explorer {
     grid-template-columns: 1fr;
-    height: auto;
   }
-  .col {
+  .explorer .col,
+  .explorer .detail-pane {
+    display: none;
+  }
+  .explorer[data-mobile="companies"] .col-companies {
+    display: flex;
+  }
+  .explorer[data-mobile="jobs"] .col-jobs {
+    display: flex;
+  }
+  .explorer[data-mobile="detail"] .detail-pane {
+    display: block;
+  }
+  .explorer .col {
+    max-height: none;
+    height: 100%;
     border-right: none;
-    border-bottom: 1px solid var(--border);
-    max-height: 42vh;
   }
   .detail-pane {
-    padding: 22px clamp(16px, 5vw, 28px);
+    padding: 20px clamp(16px, 5vw, 28px);
+  }
+  .mobile-back {
+    display: inline-flex;
   }
 }
 

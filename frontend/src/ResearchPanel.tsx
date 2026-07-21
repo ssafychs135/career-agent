@@ -39,12 +39,20 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={SPRING_UI}
-      style={{ marginBottom: "var(--sp-4)" }}
+      style={{ marginBottom: "var(--sp-5)" }}
     >
-      <div className="caption" style={{ marginBottom: 3, fontWeight: 600, color: "var(--text-2)" }}>
+      <div
+        style={{
+          marginBottom: 6,
+          fontWeight: 600,
+          fontSize: "1.15rem",
+          letterSpacing: "-0.015em",
+          color: "var(--text)",
+        }}
+      >
         {label}
       </div>
-      <div style={{ lineHeight: 1.6, color: "var(--text)" }}>{children}</div>
+      <div style={{ lineHeight: 1.65, color: "var(--text-2)" }}>{children}</div>
     </motion.div>
   );
 }

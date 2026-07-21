@@ -15,6 +15,19 @@ type ApiResearch = {
   sources?: unknown;
 };
 
+// 수집 출처(source) → 사람이 읽는 사이트명.
+const SITE_NAMES: Record<string, string> = {
+  wanted: "원티드",
+  saramin: "사람인",
+  jumpit: "점핏",
+  "jump-it": "점핏",
+  jobkorea: "잡코리아",
+  rocketpunch: "로켓펀치",
+  programmers: "프로그래머스",
+  linkedin: "LinkedIn",
+};
+const siteName = (s: string) => SITE_NAMES[s.toLowerCase()] ?? s;
+
 function adaptResearch(r: ApiResearch | null) {
   if (r === null) return null;
   return {
@@ -84,9 +97,11 @@ export default function JobDetailView({ source, jobId }: { source: string; jobId
       >
         {job.locations && <span className="pill">{job.locations}</span>}
         {job.status && <span className="pill">{job.status}</span>}
+        {/* 어느 사이트에서 수집된 공고인지 명시 */}
+        <span className="pill pill-accent">수집: {siteName(source)}</span>
         {job.url && (
-          <a href={job.url} target="_blank" rel="noreferrer" style={{ fontSize: "0.85rem" }}>
-            원문 보기 ↗
+          <a href={job.url} target="_blank" rel="noreferrer" style={{ fontSize: "0.9rem", fontWeight: 500 }}>
+            {siteName(source)}에서 원문 보기 ↗
           </a>
         )}
       </div>
