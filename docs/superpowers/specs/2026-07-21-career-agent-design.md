@@ -30,14 +30,15 @@ n8n으로 운영 중인 취업 자동화 시스템을, **독립 프론트엔드 
                             │
                      a1-cloudflared 터널 → localhost:80
                             │
-                     nginx (RP, 경로 라우팅)
-                     /            /api/*          (…향후 /api/search 등)
-             frontend(정적)   backend :8000 (FastAPI, 호스트 systemd)
-             (독립 배포)          │
-                          ┌───────┼──────────────┐
+   ┌──────────────── docker compose (Jenkins CI/CD 배포) ──────────────┐
+   │                 nginx (RP, 경로 라우팅)  :80                        │
+   │                 /            /api/*          (…향후 /api/search 등) │
+   │         frontend(정적)   backend (FastAPI + claude, uvicorn :8000)  │
+   │         (컨테이너)          │  └ ~/.claude 마운트(구독인증)          │
+   └────────────────────────────┼─────────────────────────────────────┘
+                          ┌──────┼──────────────┐
                     Postgres    claude -p       Discord 웹훅
-                 (공유 jobs DB)  (구독인증)
-                                /home/ubuntu/.local/bin/claude
+                 (공유 jobs DB)  (컨테이너 내부)
 ```
 
 **리버스 프록시 = nginx.** 두 트리거(백그라운드 워커 등 **다중 백엔드 서비스** + **프론트 독립 배포**)가 곧 오므로 기반부터 nginx를 둔다. cloudflared 터널이 `localhost:80`(nginx)로 들어오고, nginx가 `/`=프론트 정적, `/api/*`=백엔드로 경로 라우팅. 이관으로 서비스가 늘면 `/api/search`→search 서비스처럼 nginx에 라우트만 추가. (TLS·WAF·레이트리밋은 Cloudflare 엣지가 처리하므로 nginx는 순수 라우팅/정적 서빙 담당. nginx는 취준 시장가치도 고려한 선택.)
@@ -46,15 +47,17 @@ n8n으로 운영 중인 취업 자동화 시스템을, **독립 프론트엔드 
 
 | 컴포넌트 | 형태 | 책임 | 의존 |
 |---|---|---|---|
-| nginx (RP) | A1 리버스 프록시 | cloudflared 진입점, `/`→프론트 정적·`/api/*`→백엔드 경로 라우팅 | frontend dist, backend |
-| backend | FastAPI, **호스트 systemd 서비스**(ubuntu 유저, uvicorn :8000) | API 제공, 리서치 오케스트레이션, DB 접근, Discord 푸시 | Postgres(localhost:5432), claude -p, Discord |
-| frontend | React + Vite + TS, 정적 빌드 | 공고 조회·필터·리서치 열람/트리거 UI | backend API(HTTP) |
-| research runner | 백엔드 내부 모듈(비동기 태스크) | claude -p 서브프로세스 호출·파싱·저장 | claude -p, DB |
-| DB(공유) | 기존 n8n Postgres | jobs 읽기 + research 테이블 읽기/쓰기 | — |
+| nginx (RP) | **컨테이너** | cloudflared 진입점(:80), `/`→프론트 정적·`/api/*`→백엔드 경로 라우팅 | frontend dist, backend |
+| backend | **컨테이너** FastAPI + claude-code(uvicorn :8000) | API 제공, 리서치 오케스트레이션(claude -p 호출), DB 접근, Discord 푸시 | Postgres, claude(구독인증), Discord |
+| frontend | **컨테이너**(또는 nginx가 서빙할 정적 dist) React + Vite + TS | 공고 조회·필터·리서치 열람/트리거 UI | backend API(HTTP) |
+| research runner | 백엔드 내부 모듈(비동기 BackgroundTask) | claude -p 서브프로세스 호출·파싱·저장 | claude, DB |
+| DB(공유) | 기존 n8n Postgres 컨테이너 | jobs 읽기 + research 테이블 읽기/쓰기 | — |
 
-**프론트·백 독립 배포:** 프론트(dist)와 백엔드(uvicorn)는 **각각 독립 빌드·배포**되고 nginx가 앞에서 합친다. 프론트만 재배포해도 백엔드 무중단, 반대도 동일. 향후 백엔드가 여러 서비스로 쪼개지면 nginx 라우트만 추가.
+**전면 컨테이너화 + Jenkins/Docker 배포:** A1엔 이미 Jenkins + Docker 스택이 있으므로(n8n·postgres 컨테이너, Jenkins `docker compose up -d` CI/CD), career-agent도 **docker compose로 통일**한다. 호스트 systemd 예외를 두지 않아 스택이 일관되고, **기존 Jenkins 파이프라인을 재사용**한다(빌드·테스트·배포 자동화, 포트폴리오 가치).
 
-**백엔드가 호스트 서비스인 이유:** claude 구독 인증 자격증명(`~/.claude/.credentials.json`)이 ubuntu 홈에 있어, 컨테이너로 싸면 자격증명·바이너리 마운트가 취약하고 토큰 갱신이 깨질 수 있다. 호스트 systemd 서비스(ubuntu 유저)면 claude·Postgres·Discord에 자연스럽게 접근한다.
+**claude 인증 = 구독(과금 0), 컨테이너에서 마운트로 사용:** 유료 API를 쓸 수 없으므로 구독 인증을 쓴다. 백엔드 이미지에 `npm i -g @anthropic-ai/claude-code`로 claude를 설치하고, 호스트의 `~/.claude`(+`~/.claude.json`)를 **rw로 마운트**하며 컨테이너를 **ubuntu와 동일 uid**로 실행한다. 이러면 컨테이너 안 claude가 토큰을 갱신해도 호스트 원본에 반영돼 동기화가 유지된다. 유일한 제약: 토큰 완전 만료 시 **대화형 재로그인은 호스트에서 `claude login` 1회**(공유 마운트라 전파). 별도 워커·큐로 분리하지 않고 백엔드가 직접 claude -p를 비동기 호출한다.
+
+**프론트·백 독립 배포:** 프론트(정적 빌드)와 백엔드(컨테이너)는 각각 독립 빌드·배포되고 nginx가 앞에서 합친다. 프론트만 재배포해도 백엔드 무중단, 반대도 동일. 향후 백엔드가 여러 서비스로 쪼개지면 nginx 라우트만 추가.
 
 ## 데이터 모델
 
@@ -98,10 +101,10 @@ CREATE TABLE job_research (
 
 ## 리서치 실행 (claude -p)
 
-**방식:** 백엔드가 A1 호스트의 `claude -p`를 서브프로세스로 호출. claude는 설치·구독 인증 완료(`/home/ubuntu/.local/bin/claude`, v2.1.216).
+**방식:** 백엔드 **컨테이너 안에서** `claude -p`를 서브프로세스로 호출. claude-code는 이미지에 설치(`npm i -g @anthropic-ai/claude-code`), 구독 인증은 마운트된 `~/.claude`로 사용(호스트에서 이미 인증됨: v2.1.216). 비동기 BackgroundTask로 실행.
 
 ```bash
-/home/ubuntu/.local/bin/claude -p "<프롬프트>" \
+claude -p "<프롬프트>" \
   --output-format json \
   --allowedTools "WebSearch,WebFetch"
 ```
@@ -158,12 +161,14 @@ CREATE TABLE job_research (
 
 ## 배포 토폴로지
 
-- **호스트네임:** `agent.chs135.com` (Cloudflare 터널 라우트 추가, **Google Access** 뒤). cloudflared → `localhost:80`(nginx). `/api`도 Access 뒤.
-- **nginx(RP):** cloudflared 진입점. `/`=프론트 정적(dist 디렉터리 서빙), `/api/*`=`proxy_pass` → backend:8000. 서비스 추가 시 `location /api/<svc>` 블록만 추가.
-- **backend:** systemd 서비스(ubuntu 유저, uvicorn :8000). Postgres localhost:5432, claude 구독 인증, Discord 웹훅 접근. **독립 배포**(재시작해도 프론트·nginx 무관).
-- **frontend:** Vite 정적 빌드(dist) → nginx가 서빙. **독립 배포**(빌드 산출물만 교체, 백엔드 무중단). *cloudflared 터널 구조상 프론트는 A1의 nginx가 서빙; 향후 Cloudflare Pages로 옮기려면 `/api` 라우팅을 Workers/룰로 재구성 필요(지금은 안 함).*
-- **Postgres:** 기존 n8n 인스턴스 공유.
-- **CI/CD:** 이번 범위 밖. 우선 수동 배포(스크립트), 나중에 Jenkins 파이프라인 추가 가능.
+**전면 docker compose, Jenkins CI/CD로 배포**(기존 A1 Jenkins+Docker 스택 재사용).
+
+- **호스트네임:** `agent.chs135.com` (Cloudflare 터널 라우트 추가, **Google Access** 뒤). cloudflared → `localhost:80`(nginx 컨테이너). `/api`도 Access 뒤.
+- **nginx(컨테이너):** cloudflared 진입점(:80). `/`=프론트 정적 서빙, `/api/*`=`proxy_pass` → backend:8000. 서비스 추가 시 `location /api/<svc>` 블록만 추가.
+- **backend(컨테이너):** FastAPI+claude-code(uvicorn :8000). 이미지에 `npm i -g @anthropic-ai/claude-code`. **마운트:** 호스트 `~/.claude`·`~/.claude.json`를 `rw`로, **컨테이너 uid=ubuntu(예: 1000)**로 실행 → 구독 인증·토큰갱신 동기화. Postgres·Discord 접근. 독립 배포.
+- **frontend(컨테이너/정적):** Vite 빌드(dist) → nginx가 서빙. 독립 배포(빌드 산출물만 교체, 백엔드 무중단). *터널 구조상 프론트는 A1 nginx가 서빙; 향후 Cloudflare Pages로 옮기려면 `/api` 라우팅 재구성 필요(지금 안 함).*
+- **Postgres:** 기존 n8n 인스턴스 공유(별도 컨테이너, 같은 Docker 네트워크 또는 host:5432).
+- **CI/CD (Jenkins):** career-agent용 파이프라인 — 이미지 빌드 → 테스트(백/프론트) → `docker compose up -d` 배포 → 스모크. 기존 n8n 파이프라인과 동일 패턴(docker.sock, 경로동일 마운트) 재사용. 상세 파이프라인 구성은 구현 계획에서.
 
 ## 보안 · 에러 · 테스트
 
@@ -179,6 +184,7 @@ CREATE TABLE job_research (
 
 ## 미해결/이후 결정
 
-- CI/CD 파이프라인(수동 배포 후 도입).
+- Jenkins 파이프라인 세부 구성(단계·스모크·기존 n8n job과의 공존) — 구현 계획에서 확정.
 - 자동모드 활성화 시점·주기.
 - 리서치 확장 필드(평판·뉴스·면접대비) — `data jsonb`로 무중단 흡수 가능.
+- 다중 백엔드 서비스 분리(수집·검색 등 이관) 시점 — 이후 스펙.
