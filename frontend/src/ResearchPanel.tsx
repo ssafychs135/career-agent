@@ -28,7 +28,7 @@ export function ResearchPanel({
   companyResearch: Research;
   jobResearch: Research;
   refetch: () => Promise<RefetchResult>;
-  trigger?: (source: string, jobId: string) => Promise<unknown>;
+  trigger?: (source: string, jobId: string, force?: boolean) => Promise<unknown>;
   pollMs?: number;
 }) {
   const [cr, setCr] = useState<Research>(companyResearch);
@@ -37,10 +37,14 @@ export function ResearchPanel({
 
   const done = (r: Research) => r?.status === "done" || r?.status === "failed";
 
-  async function onResearch() {
+  async function onResearch(force?: boolean) {
     setBusy(true);
     try {
-      await trigger(source, jobId);
+      if (force) {
+        await trigger(source, jobId, true);
+      } else {
+        await trigger(source, jobId);
+      }
       for (let i = 0; i < 60; i++) {
         await sleep(pollMs);
         const fresh = await refetch();
@@ -53,7 +57,7 @@ export function ResearchPanel({
     }
   }
 
-  const hasResearch = jr && jr.status !== "running";
+  const jrStatus = jr?.status;
 
   return (
     <section>
@@ -87,9 +91,20 @@ export function ResearchPanel({
           ))}
         </ul>
       )}
-      {!hasResearch && (
-        <button onClick={onResearch} disabled={busy}>
-          {busy ? "리서치 중…" : "리서치 실행"}
+      {jrStatus === "running" && <p>리서치 중…</p>}
+      {jrStatus === "failed" && <p>리서치 실패</p>}
+      {jrStatus !== "running" && (
+        <button
+          onClick={() => onResearch(jrStatus === "done")}
+          disabled={busy}
+        >
+          {busy
+            ? "리서치 중…"
+            : jrStatus === "done"
+              ? "재리서치"
+              : jrStatus === "failed"
+                ? "재시도"
+                : "리서치 실행"}
         </button>
       )}
     </section>
