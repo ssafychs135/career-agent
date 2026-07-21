@@ -3,6 +3,29 @@ import { useParams, Link } from "react-router-dom";
 import { getJob, type JobDetailResponse } from "../api";
 import { ResearchPanel } from "../ResearchPanel";
 
+// api.ts의 research 응답(overview/stability/tech_detail/role_detail 등이 섞인 union,
+// sources: unknown)을 ResearchPanel이 기대하는 Research 형태로 변환.
+type ApiResearch = {
+  overview?: string | null;
+  stability?: string | null;
+  tech_detail?: string | null;
+  role_detail?: string | null;
+  status?: string | null;
+  sources?: unknown;
+};
+
+function adaptResearch(r: ApiResearch | null) {
+  if (r === null) return null;
+  return {
+    overview: r.overview ?? undefined,
+    stability: r.stability ?? undefined,
+    tech_detail: r.tech_detail ?? undefined,
+    role_detail: r.role_detail ?? undefined,
+    status: r.status ?? undefined,
+    sources: Array.isArray(r.sources) ? (r.sources as string[]) : undefined,
+  };
+}
+
 export default function JobDetail() {
   const { source, jobId } = useParams();
   const [data, setData] = useState<JobDetailResponse | null>(null);
@@ -48,9 +71,15 @@ export default function JobDetail() {
       <ResearchPanel
         source={source!}
         jobId={jobId!}
-        companyResearch={data.companyResearch as any}
-        jobResearch={data.jobResearch as any}
-        refetch={() => getJob(source!, jobId!) as any}
+        companyResearch={adaptResearch(data.companyResearch)}
+        jobResearch={adaptResearch(data.jobResearch)}
+        refetch={async () => {
+          const d = await getJob(source!, jobId!);
+          return {
+            companyResearch: adaptResearch(d.companyResearch),
+            jobResearch: adaptResearch(d.jobResearch),
+          };
+        }}
       />
     </main>
   );

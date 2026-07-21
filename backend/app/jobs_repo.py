@@ -129,14 +129,14 @@ def _split_detail(row: Any) -> dict[str, Any]:
     company_research = None if d["cr_status"] is None else {
         "overview": d["cr_overview"],
         "stability": d["cr_stability"],
-        "sources": d["cr_sources"],
+        "sources": _maybe_json(d["cr_sources"]),
         "status": d["cr_status"],
         "researched_at": d["cr_researched_at"],
     }
     job_research = None if d["jr_status"] is None else {
         "tech_detail": d["jr_tech_detail"],
         "role_detail": d["jr_role_detail"],
-        "sources": d["jr_sources"],
+        "sources": _maybe_json(d["jr_sources"]),
         "status": d["jr_status"],
         "researched_at": d["jr_researched_at"],
     }
