@@ -30,16 +30,19 @@ n8n으로 운영 중인 취업 자동화 시스템을, **독립 프론트엔드 
                             │
                      a1-cloudflared 터널 → localhost:80
                             │
-   ┌──────────────── docker compose (Jenkins CI/CD 배포) ──────────────┐
-   │                 nginx (RP, 경로 라우팅)  :80                        │
-   │                 /            /api/*          (…향후 /api/search 등) │
-   │         frontend(정적)   backend (FastAPI + claude, uvicorn :8000)  │
-   │         (컨테이너)          │  └ ~/.claude 마운트(구독인증)          │
-   └────────────────────────────┼─────────────────────────────────────┘
-                          ┌──────┼──────────────┐
-                    Postgres    claude -p       Discord 웹훅
-                 (공유 jobs DB)  (컨테이너 내부)
+   ┌──────────── career-agent docker compose (Jenkins CI/CD) ──────────┐
+   │  nginx :80 ─ /   → frontend(정적, 컨테이너)                        │
+   │            ─ /api → backend (FastAPI + claude, uvicorn :8000)      │
+   │                     │  └ ~/.claude 마운트(구독인증)                 │
+   │                     ▼                                              │
+   │              Postgres (pgvector, **career-agent 소유**)  ◄─────────┼── n8n(재연결)
+   └─────────────────────┼──────────────────────────────────────────────┘
+                  ┌───────┴──────┐
+             claude -p        Discord 웹훅
+          (컨테이너 내부)
 ```
+
+**DB는 career-agent가 소유하고 n8n은 여기에 재연결**한다(공유 → 소유권 이전). 기존 jobs 데이터를 career-agent의 Postgres로 이전하고, n8n의 DB 접속을 이 Postgres로 바꿔 **단일 소스**를 유지한다(전환기 갈라짐 방지). 상세는 아래 "DB 마이그레이션".
 
 **리버스 프록시 = nginx.** 두 트리거(백그라운드 워커 등 **다중 백엔드 서비스** + **프론트 독립 배포**)가 곧 오므로 기반부터 nginx를 둔다. cloudflared 터널이 `localhost:80`(nginx)로 들어오고, nginx가 `/`=프론트 정적, `/api/*`=백엔드로 경로 라우팅. 이관으로 서비스가 늘면 `/api/search`→search 서비스처럼 nginx에 라우트만 추가. (TLS·WAF·레이트리밋은 Cloudflare 엣지가 처리하므로 nginx는 순수 라우팅/정적 서빙 담당. nginx는 취준 시장가치도 고려한 선택.)
 
@@ -51,7 +54,7 @@ n8n으로 운영 중인 취업 자동화 시스템을, **독립 프론트엔드 
 | backend | **컨테이너** FastAPI + claude-code(uvicorn :8000) | API 제공, 리서치 오케스트레이션(claude -p 호출), DB 접근, Discord 푸시 | Postgres, claude(구독인증), Discord |
 | frontend | **컨테이너**(또는 nginx가 서빙할 정적 dist) React + Vite + TS | 공고 조회·필터·리서치 열람/트리거 UI | backend API(HTTP) |
 | research runner | 백엔드 내부 모듈(비동기 BackgroundTask) | claude -p 서브프로세스 호출·파싱·저장 | claude, DB |
-| DB(공유) | 기존 n8n Postgres 컨테이너 | jobs 읽기 + research 테이블 읽기/쓰기 | — |
+| DB | **career-agent 소유** Postgres(pgvector) 컨테이너 | jobs·research 전체 스키마·마이그레이션 소유. n8n도 여기 재연결 | — |
 
 **전면 컨테이너화 + Jenkins/Docker 배포:** A1엔 이미 Jenkins + Docker 스택이 있으므로(n8n·postgres 컨테이너, Jenkins `docker compose up -d` CI/CD), career-agent도 **docker compose로 통일**한다. 호스트 systemd 예외를 두지 않아 스택이 일관되고, **기존 Jenkins 파이프라인을 재사용**한다(빌드·테스트·배포 자동화, 포트폴리오 가치).
 
@@ -61,7 +64,7 @@ n8n으로 운영 중인 취업 자동화 시스템을, **독립 프론트엔드 
 
 ## 데이터 모델
 
-기존 `jobs` 테이블은 변경하지 않는다. `jobs`의 `UNIQUE(source, job_id)`를 FK로 활용해 리서치 2테이블 추가.
+career-agent가 **전체 스키마를 소유**한다(마이그레이션 = career-agent 레포). 이전 시점의 기존 `jobs` 스키마를 **그대로 채택**(n8n 워크플로우가 계속 의존하므로 컬럼·제약 보존)하고, 그 위에 리서치 2테이블을 추가한다. `jobs`의 `UNIQUE(source, job_id)`를 FK로 활용.
 
 ```sql
 -- ① 기업 리서치 (회사당 1회)
@@ -97,7 +100,23 @@ CREATE TABLE job_research (
 - `data jsonb`에 claude 전체 구조화 출력 보관 → 나중 필드 추가(평판·면접대비)에도 스키마 변경 없이 흡수.
 - `sources`로 인용 출처 저장 → 뷰어/Discord "근거 링크" 표시, 환각 검증.
 - `status='failed'` 저장 → 실패분 재시도(성공분 스킵). 트리거 직후 `running` 표기로 프론트 폴링.
-- 스키마는 새 레포 마이그레이션(예: `backend/migrations/`)에 반영, 라이브는 수동 실행. 읽기전용 롤(`jobs_ro`)에 두 테이블 SELECT 부여.
+- 스키마는 career-agent 마이그레이션(예: `backend/migrations/`, Alembic 등)이 소유. 기존 jobs 스키마를 베이스라인으로 흡수 + research 테이블을 신규 마이그레이션으로 추가. 읽기전용 롤(`jobs_ro`)에 두 테이블 SELECT 부여.
+
+## DB 마이그레이션 (공유 → career-agent 소유, n8n 재연결)
+
+목표: 기존 n8n Postgres(`jobs` DB, pgvector)를 **career-agent 소유 Postgres로 이전**하고 n8n을 재연결해 단일 소스 유지. 이전 대상은 **도메인 데이터(Postgres)**뿐 — n8n 내부 상태(SQLite: 워크플로우·자격증명·실행이력)는 n8n에 그대로 둔다.
+
+**절차(짧은 컷오버 창):**
+1. **쓰기 정지:** n8n 수집·요약(01·02) 등 쓰기 워크플로우 잠시 비활성화(정합성 확보).
+2. **데이터 이전:** 기존 Postgres → career-agent Postgres. 두 방식 중 택1(구현 계획에서 확정):
+   - (a) **볼륨 이관**: 기존 `data/postgres` 볼륨을 career-agent Postgres가 사용(최소 변경·무손실).
+   - (b) **pg_dump/restore**: 논리 덤프 후 새 인스턴스에 복원(깨끗한 분리). *pgvector 확장·`vector` 컬럼·HNSW 인덱스, 읽기전용 롤(roles.sh)까지 재현할 것.*
+3. **n8n 재연결:** n8n의 `DB_POSTGRESDB_HOST`(및 네트워크)를 career-agent Postgres로 변경 후 재시작. 네트워킹은 공유 external 도커 네트워크 또는 `host:5432`(구현 계획에서 확정).
+4. **검증:** 행 수·주요 테이블 카운트 일치, n8n 워크플로우 정상, career-agent 조회 정상, 임베딩/벡터쿼리 정상.
+5. **재개:** n8n 워크플로우 재활성화. 신규 수집이 새 DB에 들어오는지 확인.
+6. **정리:** 기존 Postgres 컨테이너 은퇴(볼륨 이관 방식이면 정의만 제거).
+
+**롤백:** 컷오버 실패 시 n8n `DB_POSTGRESDB_HOST`를 원복하고 워크플로우 재활성화. (b) 방식이면 원본 무손상이라 즉시 복귀 가능. 백업(pg_dump)을 컷오버 전 필수 확보.
 
 ## 리서치 실행 (claude -p)
 
@@ -167,7 +186,7 @@ claude -p "<프롬프트>" \
 - **nginx(컨테이너):** cloudflared 진입점(:80). `/`=프론트 정적 서빙, `/api/*`=`proxy_pass` → backend:8000. 서비스 추가 시 `location /api/<svc>` 블록만 추가.
 - **backend(컨테이너):** FastAPI+claude-code(uvicorn :8000). 이미지에 `npm i -g @anthropic-ai/claude-code`. **마운트:** 호스트 `~/.claude`·`~/.claude.json`를 `rw`로, **컨테이너 uid=ubuntu(예: 1000)**로 실행 → 구독 인증·토큰갱신 동기화. Postgres·Discord 접근. 독립 배포.
 - **frontend(컨테이너/정적):** Vite 빌드(dist) → nginx가 서빙. 독립 배포(빌드 산출물만 교체, 백엔드 무중단). *터널 구조상 프론트는 A1 nginx가 서빙; 향후 Cloudflare Pages로 옮기려면 `/api` 라우팅 재구성 필요(지금 안 함).*
-- **Postgres:** 기존 n8n 인스턴스 공유(별도 컨테이너, 같은 Docker 네트워크 또는 host:5432).
+- **Postgres(career-agent 소유):** career-agent compose가 pgvector Postgres를 소유. 기존 데이터 이전 후 n8n을 여기로 재연결(위 "DB 마이그레이션"). n8n은 공유 external 도커 네트워크 또는 host:5432로 접속.
 - **CI/CD (Jenkins):** career-agent용 파이프라인 — 이미지 빌드 → 테스트(백/프론트) → `docker compose up -d` 배포 → 스모크. 기존 n8n 파이프라인과 동일 패턴(docker.sock, 경로동일 마운트) 재사용. 상세 파이프라인 구성은 구현 계획에서.
 
 ## 보안 · 에러 · 테스트
@@ -179,8 +198,8 @@ claude -p "<프롬프트>" \
 ## n8n 공존/이관
 
 - 이 프론트가 **09 DB 뷰어를 대체** → n8n **09 워크플로우 비활성화**(active=false, 삭제 아님).
-- 나머지 n8n 워크플로우(01~08)는 계속 운영. 새 백엔드와 `jobs` DB 공유.
-- 이후 스펙에서 검색·알림·수집 등을 백엔드로 하나씩 이관하며 해당 WF 비활성화.
+- **DB 소유권이 career-agent로 이전**되고 n8n은 career-agent Postgres에 재연결됨(위 마이그레이션). 나머지 n8n 워크플로우(01~08)는 그 DB를 쓰며 계속 운영.
+- 이후 스펙에서 검색·알림·수집 등을 백엔드로 하나씩 이관하며 해당 WF 비활성화. 모두 이관되면 n8n은 DB를 안 쓰고 인스턴스만 존치.
 
 ## 미해결/이후 결정
 
