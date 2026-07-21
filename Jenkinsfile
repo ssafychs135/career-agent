@@ -58,11 +58,11 @@ pipeline {
           cd ${DEPLOY_DIR}
           ok=
           for i in $(seq 1 20); do
-            if docker compose --env-file .env exec -T nginx wget -qO- http://localhost/api/health 2>/dev/null | grep -q '"status":"ok"'; then ok=1; break; fi
+            if docker compose --env-file .env exec -T nginx wget -qO- http://127.0.0.1/api/health 2>/dev/null | grep -q '"status":"ok"'; then ok=1; break; fi
             sleep 2
           done
           [ "$ok" = 1 ] || { echo "backend health 미준비"; exit 1; }
-          docker compose --env-file .env exec -T nginx wget -qO- http://localhost/ | grep -q '<title>career-agent</title>'
+          docker compose --env-file .env exec -T nginx wget -qO- http://127.0.0.1/ | grep -q '<title>career-agent</title>'
           echo "smoke ok"
         '''
       }
