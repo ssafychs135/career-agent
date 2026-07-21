@@ -1,8 +1,8 @@
 # 1) 프론트 빌드
 FROM node:22-slim AS build
 WORKDIR /fe
-COPY frontend/package.json ./
-RUN npm install
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
 COPY frontend/ .
 RUN npm run build
 
