@@ -1,12 +1,58 @@
 services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - JOBS_RO_PASSWORD=${JOBS_RO_PASSWORD}
+      - TZ=Asia/Seoul
+      - PGTZ=Asia/Seoul
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      default:
+      jobs_shared:
+        aliases:
+          - postgres          # n8n이 기존 자격증명(host=postgres) 그대로 여기 접속
+    restart: unless-stopped
+
+  migrate:
+    build: ./backend
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    working_dir: /app
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - default
+    restart: "no"
+
   backend:
     build: ./backend
     user: "${HOST_UID:-1001}:${HOST_UID:-1001}"   # A1 ubuntu uid (Task 6에서 검증)
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
     volumes:
       - /home/ubuntu/.claude:/home/appuser/.claude:rw
       - /home/ubuntu/.claude.json:/home/appuser/.claude.json:rw
     expose:
       - "8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - default
     restart: unless-stopped
 
   nginx:
@@ -17,4 +63,11 @@ services:
       - "127.0.0.1:80:80"    # cloudflared만 접근(로컬 바인딩, 인터넷 직접노출 없음)
     depends_on:
       - backend
+    networks:
+      - default
     restart: unless-stopped
+
+networks:
+  default:
+  jobs_shared:
+    external: true          # n8n 재연결용 공유 네트워크(Task 8에서 생성)
