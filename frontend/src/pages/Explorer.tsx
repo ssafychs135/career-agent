@@ -67,9 +67,8 @@ export default function Explorer() {
       c.hasResearch = c.hasResearch || !!j.has_company_research;
       for (const r of regionsOf(j.locations)) if (!c.regions.includes(r)) c.regions.push(r);
     }
-    return [...map.values()].sort(
-      (a, b) => b.count - a.count || a.name.localeCompare(b.name, "ko"),
-    );
+    // 기업명(가나다) 순 정렬.
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ko"));
   }, [jobs]);
 
   const regionOpts = useMemo(() => {
