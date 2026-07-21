@@ -1,7 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { vi, test, expect, beforeEach, type Mock } from "vitest";
-import JobDetail from "./JobDetail";
+import JobDetailView from "./JobDetailView";
 import { getJob } from "../api";
 
 vi.mock("../api");
@@ -30,18 +29,8 @@ beforeEach(() => {
   });
 });
 
-function renderAt(path: string) {
-  return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/jobs/:source/:jobId" element={<JobDetail />} />
-      </Routes>
-    </MemoryRouter>,
-  );
-}
-
-test("renders detail with research presence", async () => {
-  renderAt("/jobs/saramin/1");
+test("renders detail with research body", async () => {
+  render(<JobDetailView source="saramin" jobId="1" />);
   await waitFor(() => expect(screen.getByTestId("job-title").textContent).toBe("백엔드 개발자"));
   expect(screen.getByTestId("job-company").textContent).toBe("Acme");
   expect(screen.getByText(/안정적/)).toBeTruthy();
@@ -50,6 +39,6 @@ test("renders detail with research presence", async () => {
 
 test("shows error when job missing", async () => {
   (getJob as Mock).mockRejectedValue(new Error("404"));
-  renderAt("/jobs/x/y");
+  render(<JobDetailView source="x" jobId="y" />);
   await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
 });

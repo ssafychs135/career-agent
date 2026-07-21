@@ -282,6 +282,153 @@ button:disabled {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
+/* ---- App shell: left vertical nav rail + content ------------------------- */
+.shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+.rail {
+  flex: 0 0 62px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 8px;
+  background: var(--chrome-bg);
+  -webkit-backdrop-filter: var(--chrome-blur);
+  backdrop-filter: var(--chrome-blur);
+  border-right: 1px solid var(--border);
+  z-index: 10;
+}
+.rail .logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(160deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #7b61ff));
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.rail a {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+  font-size: 20px;
+  text-decoration: none;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.rail a:hover {
+  background: var(--scrim);
+}
+.rail a.active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+}
+.content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+/* ---- Explorer: companies | jobs | detail --------------------------------- */
+.explorer {
+  display: grid;
+  grid-template-columns: 300px 340px 1fr;
+  height: 100%;
+  min-height: 0;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+}
+.col-head {
+  padding: 14px 16px 10px;
+  background: var(--chrome-bg);
+  -webkit-backdrop-filter: var(--chrome-blur);
+  backdrop-filter: var(--chrome-blur);
+  border-bottom: 1px solid var(--border);
+}
+.col-list {
+  overflow: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.col-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.item {
+  padding: 10px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+.item:hover {
+  background: var(--scrim);
+}
+.item.on {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.item:active {
+  transform: scale(0.99);
+}
+.item .name {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.item .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.detail-pane {
+  overflow: auto;
+  padding: 28px clamp(20px, 4vw, 44px);
+}
+
+/* Narrow: stack the three panels vertically; the content area scrolls. */
+@media (max-width: 1000px) {
+  .shell {
+    height: auto;
+    min-height: 100vh;
+  }
+  .explorer {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .col {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    max-height: 42vh;
+  }
+  .detail-pane {
+    padding: 22px clamp(16px, 5vw, 28px);
+  }
+}
+
 /* ============================================================================
    §14 Accessibility — reduced motion / transparency / contrast
    ============================================================================ */
