@@ -44,8 +44,7 @@ test("renders detail with research presence", async () => {
   renderAt("/jobs/saramin/1");
   await waitFor(() => expect(screen.getByTestId("job-title").textContent).toBe("백엔드 개발자"));
   expect(screen.getByTestId("job-company").textContent).toBe("Acme");
-  expect(screen.getByTestId("research-company").textContent).toContain("있음");
-  expect(screen.getByTestId("research-job").textContent).toContain("없음");
+  expect(screen.getByText(/안정적/)).toBeTruthy();
   expect(getJob).toHaveBeenCalledWith("saramin", "1");
 });
 

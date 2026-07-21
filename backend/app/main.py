@@ -6,6 +6,7 @@ from app import db
 from app.claude_client import run_claude
 from app.routers import db as db_router
 from app.routers import jobs as jobs_router
+from app.routers import research
 
 
 @asynccontextmanager
@@ -45,3 +46,5 @@ async def claude_check():
     except Exception as e:  # noqa: BLE001 — 어떤 실패든 503로 표면화
         raise HTTPException(status_code=503, detail=str(e))
     return {"ok": True, "reply": text.strip()}
+
+research.init_research(app)
