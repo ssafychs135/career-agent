@@ -70,9 +70,10 @@ export default function Ops() {
     try { const r = await putSettings(form); setForm(r); setSaved(r); }
     finally { setBusy(false); }
   }
-  async function doRun(fn: () => Promise<Record<string, number | boolean>>, label: string) {
+  async function doRun<T>(fn: () => Promise<T>, format: (r: T) => string) {
     setBusy(true); setRunMsg("실행 중…");
-    try { const r = await fn(); setRunMsg(`${label}: ${JSON.stringify(r)}`); }
+    try { setRunMsg(format(await fn())); }
+    catch { setRunMsg("실패 · 다시 시도하세요"); }
     finally { setBusy(false); }
   }
 
@@ -118,8 +119,8 @@ export default function Ops() {
                   checked={form.enabled} onChange={(e) => set("enabled", e.target.checked)} />
               </label>
               <span className="sp" />
-              <button onClick={() => doRun(runCollect, "수집")} disabled={dirty || busy}>지금 수집</button>
-              <button onClick={() => doRun(runWorker, "워커")} disabled={dirty || busy}>워커 1회</button>
+              <button onClick={() => doRun(runCollect, (r) => `수집 완료 · 스크레이핑 ${r.scraped} · 적재 ${r.inserted}`)} disabled={dirty || busy}>지금 수집</button>
+              <button onClick={() => doRun(runWorker, (r) => r.skipped_tick ? "워커 건너뜀 · LLM 대기 중" : `워커 완료 · 처리 ${r.done}${r.failed ? ` · 실패 ${r.failed}` : ""}`)} disabled={dirty || busy}>워커 1회</button>
               <span className="caption">{dirty ? "먼저 저장하세요" : runMsg}</span>
             </div>
           )}
