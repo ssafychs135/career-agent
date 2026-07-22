@@ -25,7 +25,8 @@ export default function Explorer() {
   const [error, setError] = useState("");
   const [companyQuery, setCompanyQuery] = useState("");
   const [region, setRegion] = useState("");
-  const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
+  // 다중 선택: 여러 기업을 고르면 그 기업들의 공고가 2계층에 합쳐진다.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   // 전체 공고를 한 번에 확보(현재 규모 수백 건 — 프론트에서 기업/지역 파생).
   useEffect(() => {
@@ -82,30 +83,56 @@ export default function Explorer() {
     );
   }, [companies, companyQuery, region]);
 
-  // 딥링크(/jobs/:source/:jobId)로 진입 시 해당 공고의 기업을 선택 상태로.
+  // 딥링크(/jobs/:source/:jobId)로 진입 시 해당 공고의 기업을 선택 집합에 추가.
   useEffect(() => {
     if (!loaded || !source || !jobId) return;
     const j = jobs.find((x) => x.source === source && x.job_id === jobId);
-    // 회사명은 항상 trim 정규화(그룹핑·선택·필터가 동일 키를 쓰도록)
-    if (j?.company) setSelectedCompany(j.company.trim());
+    const name = j?.company?.trim();
+    if (name) setSelected((prev) => (prev.has(name) ? prev : new Set(prev).add(name)));
   }, [loaded, source, jobId, jobs]);
 
-  const companyJobs = useMemo(() => {
-    if (!selectedCompany) return [];
-    return jobs.filter(
-      (j) => j.company?.trim() === selectedCompany && (!region || regionsOf(j.locations).includes(region)),
-    );
-  }, [jobs, selectedCompany, region]);
+  // 클릭 토글(다중 선택).
+  const toggleCompany = (name: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
 
-  // 좁은 화면 단일-패널 드릴다운: 선택 상태에서 파생(별도 state 불필요).
-  const mobilePane = source && jobId ? "detail" : selectedCompany ? "jobs" : "companies";
+  // 선택된 모든 기업의 공고를 합쳐 기업명→제목 순으로 정렬.
+  const companyJobs = useMemo(() => {
+    if (selected.size === 0) return [];
+    return jobs
+      .filter(
+        (j) => selected.has(j.company?.trim() ?? "") && (!region || regionsOf(j.locations).includes(region)),
+      )
+      .sort(
+        (a, b) =>
+          (a.company ?? "").localeCompare(b.company ?? "", "ko") ||
+          (a.title ?? "").localeCompare(b.title ?? "", "ko"),
+      );
+  }, [jobs, selected, region]);
+
+  const selCount = selected.size;
+  const selNames = [...selected].sort((a, b) => a.localeCompare(b, "ko"));
+
+  // 좁은 화면 단일-패널 드릴다운.
+  const mobilePane = source && jobId ? "detail" : selCount > 0 ? "jobs" : "companies";
 
   return (
     <div className="explorer" data-mobile={mobilePane}>
-      {/* 1) 기업 — 기업명·지역 필터 */}
+      {/* 1) 기업 — 기업명·지역 필터, 여러 개 선택 가능 */}
       <div className="col col-companies">
         <div className="col-head">
-          <h2 style={{ fontSize: "1.05rem" }}>기업</h2>
+          <div className="row" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <h2 style={{ fontSize: "1.05rem" }}>기업</h2>
+            {selCount > 0 && (
+              <button className="linklike" onClick={() => setSelected(new Set())}>
+                {selCount}개 해제
+              </button>
+            )}
+          </div>
           <div className="col-filters">
             <input
               data-testid="filter-company"
@@ -139,13 +166,13 @@ export default function Explorer() {
             <span className="caption">기업이 없습니다</span>
           )}
           {visibleCompanies.map((c) => {
-            const on = c.name === selectedCompany;
+            const on = selected.has(c.name);
             return (
               <button
                 key={c.name}
                 className={`item${on ? " on" : ""}`}
-                aria-current={on ? "true" : undefined}
-                onClick={() => setSelectedCompany(c.name)}
+                aria-pressed={on}
+                onClick={() => toggleCompany(c.name)}
               >
                 <div className="row">
                   <span className="name">{c.name}</span>
@@ -164,25 +191,27 @@ export default function Explorer() {
         </div>
       </div>
 
-      {/* 2) 공고 — 선택 기업 + 지역으로 걸러진 공고 */}
+      {/* 2) 공고 — 선택된 기업들의 공고를 합쳐서 표시 */}
       <div className="col col-jobs">
         <div className="col-head">
-          <button className="mobile-back" onClick={() => setSelectedCompany(null)} style={{ marginBottom: 8 }}>
+          <button className="mobile-back" onClick={() => setSelected(new Set())} style={{ marginBottom: 8 }}>
             ← 기업
           </button>
-          {selectedCompany ? (
+          {selCount > 0 ? (
             <>
-              {/* 어느 기업의 공고인지 이름을 헤더로 명시 */}
               <div className="caption" style={{ marginBottom: 2 }}>공고</div>
-              <h2 style={{ fontSize: "1.15rem" }}>{selectedCompany}</h2>
+              <h2 style={{ fontSize: "1.15rem" }}>
+                {selCount === 1 ? selNames[0] : `선택한 기업 ${selCount}곳`}
+              </h2>
               <div className="caption" style={{ marginTop: 4 }}>
+                {selCount > 1 ? selNames.slice(0, 3).join(", ") + (selCount > 3 ? " 외" : "") + " · " : ""}
                 {region ? region + " · " : ""}공고 {companyJobs.length}건
               </div>
             </>
           ) : (
             <>
               <h2 style={{ fontSize: "1.05rem" }}>공고</h2>
-              <div className="caption" style={{ marginTop: 6 }}>← 왼쪽에서 기업을 선택하세요</div>
+              <div className="caption" style={{ marginTop: 6 }}>← 기업을 선택하세요 (여러 곳 선택 가능)</div>
             </>
           )}
         </div>
@@ -197,6 +226,12 @@ export default function Explorer() {
                 aria-current={on ? "true" : undefined}
                 onClick={() => navigate(`/jobs/${j.source}/${j.job_id}`)}
               >
+                {/* 여러 기업이 섞이므로 각 공고에 기업명 표기 */}
+                {selCount > 1 && (
+                  <div className="caption" style={{ marginBottom: 2 }}>
+                    {j.company}
+                  </div>
+                )}
                 <div className="name">{j.title}</div>
                 <div className="row" style={{ marginTop: 6 }}>
                   <span className="caption">{j.locations}</span>
@@ -222,7 +257,7 @@ export default function Explorer() {
           </>
         ) : (
           <div className="caption" style={{ margin: "var(--sp-6)" }}>
-            기업과 공고를 선택하면 내용과 분석이 여기에 표시됩니다.
+            기업을 선택하고 공고를 고르면 내용과 분석이 여기에 표시됩니다.
           </div>
         )}
       </div>

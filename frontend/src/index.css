@@ -419,6 +419,21 @@ button:disabled {
   padding: 28px clamp(20px, 4vw, 44px);
 }
 
+/* 텍스트 링크형 버튼(선택 해제 등) */
+.linklike {
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.linklike:hover {
+  text-decoration: underline;
+}
+
 /* Back affordance — only shown in the mobile single-pane drill-down. */
 .mobile-back {
   display: none;

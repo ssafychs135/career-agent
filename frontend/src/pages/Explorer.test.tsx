@@ -54,6 +54,23 @@ test("lists companies and reveals a company's jobs on select", async () => {
   expect(screen.queryByText("ML 개발자")).toBeNull();
 });
 
+test("multi-select aggregates jobs from all selected companies", async () => {
+  render(
+    <MemoryRouter>
+      <Explorer />
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(screen.getByText("뉴런웍스")).toBeTruthy());
+  // 뉴런웍스 선택 → 그 공고만
+  fireEvent.click(screen.getByText("뉴런웍스"));
+  await waitFor(() => expect(screen.getByText("백엔드 엔지니어")).toBeTruthy());
+  expect(screen.queryByText("ML 개발자")).toBeNull();
+  // 파스텔로도 추가 선택 → 두 기업의 공고가 2계층에 합쳐짐
+  fireEvent.click(screen.getByText("파스텔로"));
+  await waitFor(() => expect(screen.getByText("ML 개발자")).toBeTruthy());
+  expect(screen.getByText("백엔드 엔지니어")).toBeTruthy();
+});
+
 test("region filter narrows the company list", async () => {
   render(
     <MemoryRouter>
