@@ -41,6 +41,8 @@ def upgrade() -> None:
         """
     )
     keywords = [k.strip() for k in os.environ.get("SEARCH_KEYWORDS", "").split(",") if k.strip()]
+    if not keywords:
+        raise RuntimeError("SEARCH_KEYWORDS must be set with at least one keyword to seed app_settings")
     webhook = os.environ.get("DISCORD_WEBHOOK_URL", "").replace("'", "''")
     op.execute(
         f"""

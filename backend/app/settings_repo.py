@@ -4,7 +4,8 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field, field_validator
 
 SETTINGS_DEFAULTS = dict(
-    keywords=["백엔드"], allowed_wanted_categories=[518, 507], max_career_years=2,
+    keywords=["백엔드"],  # 비어 있으면 안 됨: _clean_keywords가 []를 거부(무레코드 시 get_settings 폴백에 사용)
+    allowed_wanted_categories=[518, 507], max_career_years=2,
     max_pages=9999, collect_hour=9, batch_size=20,
     model="kanana-1.5-8b-instruct-2505-mlx", summary_backend="local",
     max_attempts=5, worker_interval_min=5, enabled=False, discord_webhook_url="",
