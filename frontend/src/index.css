@@ -40,7 +40,7 @@
   --hairline: rgba(0, 0, 0, 0.1);
   --hover: rgba(0, 0, 0, 0.05);
   --chip: rgba(0, 0, 0, 0.07);
-  --band: rgba(247, 247, 249, 0.95);   /* sticky 섹션 밴드 — 거의 불투명(스크롤 내용 가림) */
+  --band: #f5f5f7;   /* sticky 섹션 밴드 — 완전 불투명(스크롤 내용 완전 가림, iOS 그룹 헤더식) */
   --float: 0 20px 48px -24px rgba(0, 0, 0, 0.22);
   --float-sm: 0 8px 20px -14px rgba(0, 0, 0, 0.18);
   --blur: blur(26px) saturate(150%);
@@ -66,7 +66,7 @@
     --hairline: rgba(255, 255, 255, 0.08);
     --hover: rgba(255, 255, 255, 0.06);
     --chip: rgba(255, 255, 255, 0.09);
-    --band: rgba(40, 42, 48, 0.95);
+    --band: #26272d;
     --float: 0 24px 56px -26px rgba(0, 0, 0, 0.66);
     --float-sm: 0 10px 24px -16px rgba(0, 0, 0, 0.54);
   }
@@ -233,10 +233,8 @@ button:disabled { opacity: 0.45; cursor: default; }
 .job-group-head {
   position: sticky; top: -8px; z-index: 3;
   margin: -8px -10px 4px; padding: 9px 12px 8px;
-  /* 거의 불투명 → 스크롤되는 공고 제목이 밴드를 투과해 겹치지 않게 */
+  /* 완전 불투명 → 스크롤되는 공고 제목이 밴드를 투과해 겹치지 않게 */
   background: var(--band);
-  -webkit-backdrop-filter: blur(8px) saturate(150%);
-  backdrop-filter: blur(8px) saturate(150%);
   box-shadow: 0 1px 0 var(--hairline);
   font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
   color: var(--text-3); display: flex; align-items: center; gap: 7px;
