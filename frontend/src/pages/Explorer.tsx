@@ -82,11 +82,17 @@ export default function Explorer() {
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ko"));
   }, [jobs]);
 
+  // 지역 옵션 — 공고 수 많은 순 정렬(동수는 가나다). 한 공고의 복수 지역은 도시별 1회만 카운트.
   const regionOpts = useMemo(() => {
-    const s = new Set<string>();
-    for (const c of companies) for (const r of c.regions) s.add(r);
-    return [...s].sort((a, b) => a.localeCompare(b, "ko"));
-  }, [companies]);
+    const counts = new Map<string, number>();
+    for (const j of jobs) {
+      const cities = new Set(locTokens(j.locations).map((t) => t.city).filter(Boolean));
+      for (const city of cities) counts.set(city, (counts.get(city) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ko"))
+      .map(([city, count]) => ({ city, count }));
+  }, [jobs]);
 
   // 선택한 시/도 안의 구(세부 지역) 목록.
   const districtOpts = useMemo(() => {
@@ -204,8 +210,8 @@ export default function Explorer() {
             >
               <option value="">지역 전체</option>
               {regionOpts.map((r) => (
-                <option key={r} value={r}>
-                  {r}
+                <option key={r.city} value={r.city}>
+                  {r.city} ({r.count})
                 </option>
               ))}
             </select>

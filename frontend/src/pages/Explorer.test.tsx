@@ -83,6 +83,19 @@ test("region filter narrows the company list", async () => {
   expect(screen.getByText("파스텔로")).toBeTruthy();
 });
 
+test("region options are ordered by job count (most first)", async () => {
+  render(
+    <MemoryRouter>
+      <Explorer />
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(screen.getByText("뉴런웍스")).toBeTruthy());
+  // 서울=2건(뉴런웍스 2), 경기=1건(파스텔로 1) → 서울이 먼저
+  const region = screen.getByTestId("filter-region") as HTMLSelectElement;
+  const cities = [...region.options].map((o) => o.value).filter(Boolean);
+  expect(cities).toEqual(["서울", "경기"]);
+});
+
 test("selecting a region reveals a district (세부 지역) filter that narrows further", async () => {
   render(
     <MemoryRouter>
