@@ -371,6 +371,45 @@ button:disabled {
   flex-direction: column;
   gap: 6px;
 }
+/* 기업별 그룹 + sticky 헤더(스크롤해도 현재 기업명이 맨 위에 붙어 상시 표시) */
+.job-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.job-group-head {
+  position: sticky;
+  top: -8px; /* col-list padding-top(8px) 상쇄 → 스크롤 시 맨 위에 flush */
+  z-index: 2;
+  margin: -8px -8px 0; /* col-list padding을 뚫고 전체 너비로 */
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  backdrop-filter: saturate(180%) blur(12px);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.job-group-count {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-3);
+  background: var(--scrim);
+  border-radius: 999px;
+  padding: 0 0.4rem;
+}
+@media (prefers-reduced-transparency: reduce) {
+  .job-group-head {
+    background: var(--bg);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
 .col-filters {
   display: flex;
   flex-direction: column;

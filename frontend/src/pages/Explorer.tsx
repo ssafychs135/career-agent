@@ -114,6 +114,18 @@ export default function Explorer() {
       );
   }, [jobs, selected, region]);
 
+  // 기업별 그룹(companyJobs는 이미 기업명→제목 순). 2계층에 기업 구분선/헤더로 쓴다.
+  const jobGroups = useMemo(() => {
+    const groups: { company: string; jobs: JobSummary[] }[] = [];
+    for (const j of companyJobs) {
+      const c = j.company?.trim() ?? "";
+      const last = groups[groups.length - 1];
+      if (last && last.company === c) last.jobs.push(j);
+      else groups.push({ company: c, jobs: [j] });
+    }
+    return groups;
+  }, [companyJobs]);
+
   const selCount = selected.size;
   const selNames = [...selected].sort((a, b) => a.localeCompare(b, "ko"));
 
@@ -225,33 +237,37 @@ export default function Explorer() {
           )}
         </div>
         <div className="col-list">
-          {companyJobs.map((j) => {
-            const on = j.source === source && j.job_id === jobId;
-            return (
-              <button
-                key={`${j.source}:${j.job_id}`}
-                data-testid="job-link"
-                className={`item${on ? " on" : ""}`}
-                aria-current={on ? "true" : undefined}
-                onClick={() => navigate(`/jobs/${j.source}/${j.job_id}`)}
-              >
-                {/* 여러 기업이 섞이므로 각 공고에 기업명 표기 */}
-                {selCount > 1 && (
-                  <div className="caption" style={{ marginBottom: 2 }}>
-                    {j.company}
-                  </div>
-                )}
-                <div className="name">{j.title}</div>
-                <div className="row" style={{ marginTop: 6 }}>
-                  <span className="caption">{j.locations}</span>
-                  <span style={{ display: "flex", gap: 4 }}>
-                    {j.status && <span className="pill">{j.status}</span>}
-                    {j.has_job_research && <span className="pill">분석✓</span>}
-                  </span>
+          {jobGroups.map((g) => (
+            <div className="job-group" key={g.company}>
+              {/* 기업별 구분 헤더 — 스크롤해도 맨 위에 sticky로 상시 표시 */}
+              {selCount > 1 && (
+                <div className="job-group-head">
+                  {g.company} <span className="job-group-count">{g.jobs.length}</span>
                 </div>
-              </button>
-            );
-          })}
+              )}
+              {g.jobs.map((j) => {
+                const on = j.source === source && j.job_id === jobId;
+                return (
+                  <button
+                    key={`${j.source}:${j.job_id}`}
+                    data-testid="job-link"
+                    className={`item${on ? " on" : ""}`}
+                    aria-current={on ? "true" : undefined}
+                    onClick={() => navigate(`/jobs/${j.source}/${j.job_id}`)}
+                  >
+                    <div className="name">{j.title}</div>
+                    <div className="row" style={{ marginTop: 6 }}>
+                      <span className="caption">{j.locations}</span>
+                      <span style={{ display: "flex", gap: 4 }}>
+                        {j.status && <span className="pill">{j.status}</span>}
+                        {j.has_job_research && <span className="pill">분석✓</span>}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </div>
 
