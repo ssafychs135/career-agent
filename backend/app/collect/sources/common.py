@@ -11,7 +11,7 @@ def strip_tags(s) -> str:
 def title_hit(title: str, keywords) -> bool:
     t = title or ""
     for kw in keywords:
-        pat = r"\b" + re.escape(kw) + r"\b"
+        pat = r"(^|[^A-Za-z0-9])" + re.escape(kw) + r"([^A-Za-z0-9]|$)"
         if re.search(pat, t, re.IGNORECASE):
             return True
     return False

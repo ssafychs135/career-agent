@@ -5,8 +5,9 @@ from app.collect.sources.wanted import parse_wanted_results, wanted_list_url
 
 def test_title_hit_word_boundary():
     assert title_hit("백엔드 개발자", ["백엔드"]) is True
-    assert title_hit("백엔드개발자", ["백엔드"]) is False   # 단어경계 없음
+    assert title_hit("백엔드개발자", ["백엔드"]) is True   # 한글은 인접문자가 경계 → n8n 원본 동작(포함)
     assert title_hit("Backend Engineer", ["backend"]) is True  # 대소문자 무시
+    assert title_hit("backends", ["backend"]) is False         # 영문은 단어경계 유지(붙으면 제외)
 
 
 def test_career_ok():
