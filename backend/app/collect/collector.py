@@ -11,7 +11,9 @@ _UA = {"User-Agent": "Mozilla/5.0"}
 INSERT_SQL = (
     "INSERT INTO jobs "
     "(source, job_id, company, title, url, min_career, max_career, tech_stacks, locations, closed_at) "
-    "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) "
+    # closed_at은 소스 API가 ISO 문자열로 줌 → asyncpg가 timestamptz에 str 못 넣으므로
+    # ::timestamptz 캐스트로 Postgres가 파싱하게 함(n8n 원본이 SQL 리터럴로 하던 것과 동일).
+    "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::timestamptz) "
     "ON CONFLICT (source, job_id) DO NOTHING"
 )
 

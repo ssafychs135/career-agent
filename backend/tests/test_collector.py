@@ -15,6 +15,8 @@ def test_dedupe_keeps_first():
 def test_insert_sql_is_on_conflict_do_nothing():
     assert "INSERT INTO jobs" in INSERT_SQL
     assert "ON CONFLICT (source, job_id) DO NOTHING" in INSERT_SQL
+    # closed_at은 ISO 문자열로 들어오므로 asyncpg가 timestamptz에 바인딩하려면 SQL 캐스트 필요.
+    assert "$10::timestamptz" in INSERT_SQL
 
 
 class FakeResp:
