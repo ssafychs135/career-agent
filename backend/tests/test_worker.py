@@ -53,3 +53,14 @@ async def test_worker_retry_cap_marks_failed_on_empty():
     r = await worker_tick(conn, _settings(max_attempts=5), http=http, summarizer=summ, health=up)
     assert r["failed"] == 1
     assert "failed" in conn.updates[-1][0]
+
+
+async def test_worker_summarizer_error_routes_to_retry():
+    claimed = [{"id": 1, "source": "jumpit", "job_id": "5", "company": "A", "title": "T", "attempts": 0}]
+    conn = Conn(claimed)
+    http = Http({"result": {"responsibility": "일", "qualifications": "q", "preferredRequirements": "p"}})
+    async def up(http, base_url=None): return True
+    async def boom(prompt, settings, *, http, on_step=None): raise RuntimeError("llm error mid-call")
+    r = await worker_tick(conn, _settings(), http=http, summarizer=boom, health=up)
+    assert r["failed"] == 1 and r["done"] == 0
+    assert "attempts=attempts+1" in conn.updates[-1][0]  # 재시도 SQL 적용, 크래시 없음

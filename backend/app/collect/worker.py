@@ -1,11 +1,8 @@
-import logging
-
 from app.collect.detail import detail_url, parse_detail
 from app.collect.config import DETAIL_TIMEOUT, JOB_PROXY_SECRET, JOB_PROXY_URL
 from app.collect.health import llm_healthy
 from app.collect.summarize import extract_stacks, summarize
 
-log = logging.getLogger("collect.worker")
 _UA = {"User-Agent": "Mozilla/5.0"}
 
 # pending을 원자적으로 점유 → 'processing' 마킹(SKIP LOCKED로 이중 처리 방지).
@@ -68,7 +65,10 @@ async def worker_tick(conn, settings, *, http, summarizer=summarize,
         prompt = f"제목: {title}\n회사: {job.get('company') or ''}\n\n{body}"
         if on_stage:
             on_stage("요약 중", f"{job.get('company') or ''} · {title}", f"{i+1}/{len(batch)}")
-        content = await summarizer(prompt, settings, http=http)
+        try:
+            content = await summarizer(prompt, settings, http=http)
+        except Exception:  # noqa: BLE001 — 요약 실패도 상세 실패와 동일하게 재시도 캡으로
+            content = None
         if content:
             await conn.execute(_DONE_SQL, content, extract_stacks(content), job["id"])
             done += 1
