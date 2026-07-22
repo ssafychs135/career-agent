@@ -76,8 +76,8 @@ export default function Ops() {
     finally { setBusy(false); }
   }
 
-  const card = (i: number) => ({
-    className: "card",
+  const card = (i: number, extra = "") => ({
+    className: `card ${extra}`.trim(),
     initial: { opacity: 0, y: 12 },
     animate: { opacity: 1, y: 0 },
     transition: stagger(i),
@@ -107,46 +107,45 @@ export default function Ops() {
         {status && <span className={status.enabled ? "pill pill-good" : "pill"}>{status.enabled ? "수집 ON" : "수집 OFF"}</span>}
       </motion.div>
 
-      {/* ② 라이브 파이프라인 */}
-      <motion.section {...card(1)}>
-        <div className="card-h">라이브 파이프라인</div>
-        {!status ? (
-          <p className="caption" style={{ margin: 0 }}>불러오는 중…</p>
-        ) : (
-          <>
-            <MonitorRow name="수집기" live={!!col} stage={col ? col.stage : "idle"} detail={col?.detail} progress={col?.progress} />
-            <MonitorRow name="워커" live={!!wrk} stage={wrk ? wrk.stage : "idle"} detail={wrk?.detail} progress={wrk?.progress} />
-            {status.activity.research.length === 0 ? (
-              <MonitorRow name="리서치" stage="idle" live={false} />
-            ) : (
-              status.activity.research.map((r) => (
-                <MonitorRow key={r.detail_key} name="리서치" live stage={r.stage} detail={r.detail || r.detail_key} />
-              ))
-            )}
-          </>
-        )}
-      </motion.section>
-
-      {/* ③ 설정 */}
-      {!form ? (
-        <p className="caption" style={{ marginTop: "var(--sp-4)" }}>설정 불러오는 중…</p>
-      ) : (
-        <>
-          <motion.section {...card(2)}>
-            <div className="card-h">수집 제어</div>
-            <div className="form-row">
-              <span className="rl">수집 활성화</span>
-              <input className="switch" type="checkbox" aria-label="수집 활성화"
-                checked={form.enabled} onChange={(e) => set("enabled", e.target.checked)} />
-            </div>
-            <div className="run-bar">
+      <div className="ops-grid">
+        {/* ② 파이프라인 — 제어(토글+실행) + 라이브 모니터, 전폭 피처드 */}
+        <motion.section {...card(1, "span-2")}>
+          <div className="card-h">파이프라인</div>
+          {form && (
+            <div className="pipe-bar">
+              <label className="sw">수집 활성화
+                <input className="switch" type="checkbox" aria-label="수집 활성화"
+                  checked={form.enabled} onChange={(e) => set("enabled", e.target.checked)} />
+              </label>
+              <span className="sp" />
               <button onClick={() => doRun(runCollect, "수집")} disabled={dirty || busy}>지금 수집</button>
               <button onClick={() => doRun(runWorker, "워커")} disabled={dirty || busy}>워커 1회</button>
               <span className="caption">{dirty ? "먼저 저장하세요" : runMsg}</span>
             </div>
-          </motion.section>
+          )}
+          <div className="pipe-monitor">
+            {!status ? (
+              <p className="caption" style={{ margin: 0 }}>불러오는 중…</p>
+            ) : (
+              <>
+                <MonitorRow name="수집기" live={!!col} stage={col ? col.stage : "idle"} detail={col?.detail} progress={col?.progress} />
+                <MonitorRow name="워커" live={!!wrk} stage={wrk ? wrk.stage : "idle"} detail={wrk?.detail} progress={wrk?.progress} />
+                {status.activity.research.length === 0 ? (
+                  <MonitorRow name="리서치" stage="idle" live={false} />
+                ) : (
+                  status.activity.research.map((r) => (
+                    <MonitorRow key={r.detail_key} name="리서치" live stage={r.stage} detail={r.detail || r.detail_key} />
+                  ))
+                )}
+              </>
+            )}
+          </div>
+        </motion.section>
 
-          <motion.section {...card(3)}>
+        {/* ③ 설정 — 수집기 · 워커 2단, 알림 풋터 전폭 */}
+        {form && (
+          <>
+          <motion.section {...card(2)}>
             <div className="card-h">수집기</div>
             <div className="form-row wide">
               <span className="rl">키워드</span>
@@ -173,7 +172,7 @@ export default function Ops() {
             </label>
           </motion.section>
 
-          <motion.section {...card(4)}>
+          <motion.section {...card(3)}>
             <div className="card-h">워커</div>
             <label className="form-row num">
               <span className="rl">배치 크기</span>
@@ -200,7 +199,7 @@ export default function Ops() {
             </label>
           </motion.section>
 
-          <motion.section {...card(5)}>
+          <motion.section {...card(4, "span-2")}>
             <div className="card-h">알림</div>
             <label className="form-row wide">
               <span className="rl">Discord 웹훅</span>
@@ -208,8 +207,9 @@ export default function Ops() {
                 value={form.discord_webhook_url} onChange={(e) => set("discord_webhook_url", e.target.value)} />
             </label>
           </motion.section>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </main>
   );
 }

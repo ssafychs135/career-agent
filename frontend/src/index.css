@@ -332,7 +332,7 @@ button:disabled { opacity: 0.45; cursor: default; }
    콘텐츠 페이지(설정·상태) — Home과 동일한 중앙정렬 main + glass card 언어
    ============================================================================ */
 .page {
-  width: 100%; max-width: 680px; margin: 0 auto;
+  width: 100%; max-width: 1000px; margin: 0 auto;
   padding: clamp(1.5rem, 5vw, 3rem) clamp(1rem, 4vw, 1.75rem) 4rem;
 }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: var(--sp-5); }
@@ -369,6 +369,21 @@ button:disabled { opacity: 0.45; cursor: default; }
 .switch:checked::after { transform: translateX(18px); }
 
 .run-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+
+/* 운영 대시보드 그리드 — 피처드 파이프라인(전폭) + 설정 2단 + 알림 풋터(전폭) */
+.ops-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  align-items: start; margin-top: var(--sp-4);
+}
+.ops-grid .span-2 { grid-column: 1 / -1; }
+/* 파이프라인 타일 상단 = 제어(토글+실행), 하단 = 라이브 모니터(구분선으로 분리) */
+.pipe-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+  padding-bottom: 14px; margin-bottom: 6px; border-bottom: 1px solid var(--hairline);
+}
+.pipe-bar .sw { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; color: var(--text); }
+.pipe-bar .sp { flex: 1 1 8px; }   /* 토글과 실행버튼 사이 여백(넓으면 밀어냄) */
+@media (max-width: 720px) { .ops-grid { grid-template-columns: 1fr; } }
 
 /* ChipInput — glass 트랙 안에 뉴트럴 pill 칩(§ 무채색 선택) */
 .chip-input {
