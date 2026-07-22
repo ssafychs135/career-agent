@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from urllib.parse import quote
 
 from app.collect.config import JOB_PROXY_SECRET, JOB_PROXY_URL
@@ -11,11 +12,20 @@ _UA = {"User-Agent": "Mozilla/5.0"}
 INSERT_SQL = (
     "INSERT INTO jobs "
     "(source, job_id, company, title, url, min_career, max_career, tech_stacks, locations, closed_at) "
-    # closed_at은 소스 API가 ISO 문자열로 줌 → asyncpg가 timestamptz에 str 못 넣으므로
-    # ::timestamptz 캐스트로 Postgres가 파싱하게 함(n8n 원본이 SQL 리터럴로 하던 것과 동일).
-    "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::timestamptz) "
+    "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) "
     "ON CONFLICT (source, job_id) DO NOTHING"
 )
+
+
+def parse_dt(v):
+    """소스 API의 closed_at은 ISO 문자열 → asyncpg timestamptz는 datetime을 요구.
+    파싱 실패/빈값은 None(NULL). ('Z'·오프셋 포함 ISO 지원)."""
+    if not v:
+        return None
+    try:
+        return datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
 
 
 def dedupe(rows: list[dict]) -> list[dict]:
@@ -32,7 +42,7 @@ def dedupe(rows: list[dict]) -> list[dict]:
 def _row_params(r: dict) -> tuple:
     return (
         r["source"], r["job_id"], r["company"], r["title"], r["url"],
-        r["min_career"], r["max_career"], r["tech_stacks"], r["locations"], r["closed_at"],
+        r["min_career"], r["max_career"], r["tech_stacks"], r["locations"], parse_dt(r["closed_at"]),
     )
 
 

@@ -15,8 +15,22 @@ def test_dedupe_keeps_first():
 def test_insert_sql_is_on_conflict_do_nothing():
     assert "INSERT INTO jobs" in INSERT_SQL
     assert "ON CONFLICT (source, job_id) DO NOTHING" in INSERT_SQL
-    # closed_at은 ISO 문자열로 들어오므로 asyncpg가 timestamptz에 바인딩하려면 SQL 캐스트 필요.
-    assert "$10::timestamptz" in INSERT_SQL
+
+
+def test_parse_dt_converts_iso_string_to_datetime():
+    from datetime import datetime
+    from app.collect.collector import parse_dt, _row_params
+    # asyncpg timestamptz는 str이 아니라 datetime을 요구 — 소스 API의 ISO 문자열을 변환해야 함.
+    assert parse_dt("2026-08-05T23:59:59") == datetime(2026, 8, 5, 23, 59, 59)
+    assert parse_dt("2026-08-01T14:59:59+09:00").tzinfo is not None
+    assert parse_dt(None) is None
+    assert parse_dt("") is None
+    assert parse_dt("not-a-date") is None
+    # _row_params의 closed_at($10)은 반드시 datetime 또는 None(str이면 asyncpg DataError)
+    row = {"source": "jumpit", "job_id": "1", "company": "A", "title": "t", "url": "u",
+           "min_career": 0, "max_career": 3, "tech_stacks": [], "locations": "서울",
+           "closed_at": "2026-08-05T23:59:59"}
+    assert isinstance(_row_params(row)[9], datetime)
 
 
 class FakeResp:
