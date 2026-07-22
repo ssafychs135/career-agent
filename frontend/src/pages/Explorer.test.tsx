@@ -90,11 +90,13 @@ test("selecting a region reveals a district (세부 지역) filter that narrows 
     </MemoryRouter>,
   );
   await waitFor(() => expect(screen.getByText("뉴런웍스")).toBeTruthy());
-  // 세부 지역 드롭다운은 시/도 선택 전엔 없음
-  expect(screen.queryByTestId("filter-district")).toBeNull();
-  // 서울 선택 → 세부 지역(구) 드롭다운 등장
+  // 세부 지역 드롭다운은 항상 표시되되, 시/도 선택 전엔 비활성
+  expect((screen.getByTestId("filter-district") as HTMLSelectElement).disabled).toBe(true);
+  // 서울 선택 → 세부 지역(구) 드롭다운 활성화
   fireEvent.change(screen.getByTestId("filter-region"), { target: { value: "서울" } });
-  await waitFor(() => expect(screen.getByTestId("filter-district")).toBeTruthy());
+  await waitFor(() =>
+    expect((screen.getByTestId("filter-district") as HTMLSelectElement).disabled).toBe(false),
+  );
   // 강남구 선택 → 서울 강남구인 뉴런웍스 유지, 경기인 파스텔로는 숨김
   fireEvent.change(screen.getByTestId("filter-district"), { target: { value: "강남구" } });
   await waitFor(() => expect(screen.getByText("뉴런웍스")).toBeTruthy());

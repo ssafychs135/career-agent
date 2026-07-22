@@ -209,21 +209,21 @@ export default function Explorer() {
                 </option>
               ))}
             </select>
-            {region && districtOpts.length > 0 && (
-              <select
-                data-testid="filter-district"
-                aria-label="세부 지역"
-                value={district}
-                onChange={(e) => setDistrict(e.target.value)}
-              >
-                <option value="">{region} 전체</option>
-                {districtOpts.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-            )}
+            {/* 세부 지역은 항상 표시(레이아웃 고정) — 시/도 미선택 시 비활성 */}
+            <select
+              data-testid="filter-district"
+              aria-label="세부 지역"
+              value={district}
+              onChange={(e) => setDistrict(e.target.value)}
+              disabled={!region || districtOpts.length === 0}
+            >
+              <option value="">{region ? `${region} 전체` : "세부 지역"}</option>
+              {districtOpts.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
         <div className="col-list">
