@@ -59,14 +59,17 @@ async def run_claude(
 
     try:
         await asyncio.wait_for(_consume(), timeout=timeout)
-        await asyncio.wait_for(proc.wait(), timeout=5)
     except asyncio.TimeoutError:
         proc.kill()
         raise RuntimeError("claude timed out")
+    try:
+        await asyncio.wait_for(proc.wait(), timeout=5)
+    except asyncio.TimeoutError:
+        proc.kill()  # 프로세스는 정리하되 이미 받은 result는 버리지 않음
 
-    if proc.returncode not in (0, None) and result is None:
+    if result is not None:
+        return result
+    if proc.returncode not in (0, None):
         err = (await proc.stderr.read()).decode()[:500]
         raise RuntimeError(f"claude failed ({proc.returncode}): {err}")
-    if result is None:
-        raise RuntimeError("claude produced no result event")
-    return result
+    raise RuntimeError("claude produced no result event")

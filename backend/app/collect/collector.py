@@ -45,9 +45,9 @@ async def _scrape(settings, http, on_stage) -> list[dict]:
             url = f"https://jumpit-api.saramin.co.kr/api/positions?keyword={quote(kw)}&sort=relation&page={page}"
             try:
                 payload = (await http.get(url, headers=_UA)).json()
-            except Exception:  # noqa: BLE001 — 네트워크 실패 시 이 키워드 종료
+                parsed = parse_jumpit_positions(payload, settings.keywords, settings.max_career_years)
+            except Exception:  # noqa: BLE001 — 네트워크/파싱 실패 시 이 키워드 종료
                 break
-            parsed = parse_jumpit_positions(payload, settings.keywords, settings.max_career_years)
             if not (payload or {}).get("result", {}).get("positions"):
                 break
             rows.extend(parsed)
@@ -64,14 +64,15 @@ async def _scrape(settings, http, on_stage) -> list[dict]:
                 req_url, hdr = wurl, _UA
             try:
                 payload = (await http.get(req_url, headers=hdr)).json()
-            except Exception:  # noqa: BLE001
+                parsed = parse_wanted_results(
+                    payload, settings.allowed_wanted_categories,
+                    settings.keywords, settings.max_career_years,
+                )
+            except Exception:  # noqa: BLE001 — 네트워크/파싱 실패 시 이 카테고리 종료
                 break
             if not (payload or {}).get("data"):
                 break
-            rows.extend(parse_wanted_results(
-                payload, settings.allowed_wanted_categories,
-                settings.keywords, settings.max_career_years,
-            ))
+            rows.extend(parsed)
     return rows
 
 
