@@ -327,3 +327,13 @@ button:disabled { opacity: 0.45; cursor: default; }
   }
   button:active:not(:disabled), .item:active { transform: none; }
 }
+
+/* ============================================================================
+   ChipInput · Segmented 컴포넌트
+   ============================================================================ */
+.chip-input { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip button { margin-left: 6px; background: none; border: none; cursor: pointer; color: inherit; }
+.chip-input input { flex: 1; min-width: 120px; background: transparent; border: none; outline: none; color: inherit; }
+.segmented { display: inline-flex; gap: 2px; border-radius: 8px; overflow: hidden; }
+.segmented .seg { padding: 6px 14px; border: none; cursor: pointer; background: var(--surface-2, #2a2a2a); color: inherit; }
+.segmented .seg.active { background: var(--accent, #3b82f6); color: #fff; }
