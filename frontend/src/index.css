@@ -207,6 +207,10 @@ button:disabled { opacity: 0.45; cursor: default; }
   background: linear-gradient(90deg, transparent, var(--hairline) 10%, var(--hairline) 90%, transparent);
 }
 .col-list { overflow: auto; padding: 8px 10px 14px; display: flex; flex-direction: column; gap: 6px; scrollbar-width: thin; }
+/* 공고 리스트만: sticky 밴드가 top:0에 flush로 붙도록 상단 패딩 제거,
+   대신 첫 그룹에만 숨(스크롤 시 sticky는 여전히 top:0 flush). */
+.col-jobs .col-list { padding-top: 0; }
+.col-jobs .col-list > .job-group:first-child { margin-top: 8px; }
 .col-filters { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 
 /* item lozenge + 무채색 선택 */
@@ -231,8 +235,10 @@ button:disabled { opacity: 0.45; cursor: default; }
 /* sticky 각진 섹션 밴드 — 리스트 폭을 꽉 채우고 밑줄만(둥근 칩 아님) */
 .job-group { display: flex; flex-direction: column; gap: 6px; }
 .job-group-head {
-  position: sticky; top: -8px; z-index: 3;
-  margin: -8px -10px 4px; padding: 9px 12px 8px;
+  /* top:0 스틱 + 음수 top 마진 제거 → 이전 공고 항목과 flow 겹침 없음.
+     공고 리스트 상단 패딩을 0으로 두어(아래) top:0에서 밴드가 정확히 flush. */
+  position: sticky; top: 0; z-index: 3;
+  margin: 0 -10px 4px; padding: 9px 12px 8px;
   /* 완전 불투명 → 스크롤되는 공고 제목이 밴드를 투과해 겹치지 않게 */
   background: var(--band);
   box-shadow: 0 1px 0 var(--hairline);
