@@ -60,6 +60,7 @@ services:
         condition: service_completed_successfully
     networks:
       - default
+      - llm_net          # n8n llm-proxy(host.docker.internal:1234) 접속 — 워커 요약·/status 헬스
     restart: unless-stopped
 
   nginx:
@@ -78,3 +79,6 @@ networks:
   default:
   jobs_shared:
     external: true          # n8n 재연결용 공유 네트워크(Task 8에서 생성)
+  llm_net:
+    external: true
+    name: n8n-pjt_default   # n8n llm-proxy(host.docker.internal:1234 별칭)에 닿기 위함(수집 요약 LLM)
