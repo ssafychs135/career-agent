@@ -1,8 +1,6 @@
-import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
-import Home from "./pages/Home";
+import { BrowserRouter, Routes, Route, NavLink, Navigate } from "react-router-dom";
 import Explorer from "./pages/Explorer";
-import Settings from "./pages/Settings";
-import Status from "./pages/Status";
+import Ops from "./pages/Ops";
 
 const active = ({ isActive }: { isActive: boolean }) => (isActive ? "active" : "");
 
@@ -13,17 +11,11 @@ function Rail() {
       <div className="logo" aria-hidden>
         c
       </div>
-      <NavLink to="/" end title="홈" className={active}>
-        ⌂
-      </NavLink>
       <NavLink to="/jobs" title="탐색" className={active}>
         ◱
       </NavLink>
-      <NavLink to="/settings" title="설정" className={active}>
+      <NavLink to="/" end title="운영" className={active}>
         ⚙
-      </NavLink>
-      <NavLink to="/status" title="상태" className={active}>
-        ◉
       </NavLink>
       <span style={{ flex: 1 }} />
     </nav>
@@ -37,11 +29,12 @@ export default function App() {
         <Rail />
         <div className="content">
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<Ops />} />
             <Route path="/jobs" element={<Explorer />} />
             <Route path="/jobs/:source/:jobId" element={<Explorer />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/status" element={<Status />} />
+            {/* 옛 라우트 → 운영 대시보드로 통합(북마크 보호) */}
+            <Route path="/settings" element={<Navigate to="/" replace />} />
+            <Route path="/status" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
       </div>
