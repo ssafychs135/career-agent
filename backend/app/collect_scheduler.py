@@ -10,21 +10,29 @@ log = logging.getLogger("collect.scheduler")
 
 
 async def collector_job(get_ctx) -> None:
-    pool, http = get_ctx()
+    pool, http, activity = get_ctx()
     async with pool.acquire() as conn:
         settings = await get_settings(conn)
         if not settings.enabled:
             return
-        await collect(conn, settings, http=http)
+        try:
+            await collect(conn, settings, http=http,
+                          on_stage=lambda st, d, p: activity.set_stage("collector", st, d, str(p)))
+        finally:
+            activity.clear("collector")
 
 
 async def worker_job(get_ctx) -> None:
-    pool, http = get_ctx()
+    pool, http, activity = get_ctx()
     async with pool.acquire() as conn:
         settings = await get_settings(conn)
         if not settings.enabled:
             return
-        await worker_tick(conn, settings, http=http)
+        try:
+            await worker_tick(conn, settings, http=http,
+                              on_stage=lambda st, d, p: activity.set_stage("worker", st, d, str(p)))
+        finally:
+            activity.clear("worker")
 
 
 def start_collect_scheduler(app) -> None:
@@ -36,7 +44,7 @@ def start_collect_scheduler(app) -> None:
     if getattr(app.state, "collect_scheduler", None) is not None:
         return
     sched = AsyncIOScheduler()
-    get_ctx = lambda: (app.state.db, app.state.http)  # noqa: E731
+    get_ctx = lambda: (app.state.db, app.state.http, app.state.activity)  # noqa: E731
     sched.add_job(collector_job, "cron", id="collector", hour=9, minute=0, args=[get_ctx])
     sched.add_job(worker_job, "interval", id="worker", minutes=5, args=[get_ctx])
     sched.start()

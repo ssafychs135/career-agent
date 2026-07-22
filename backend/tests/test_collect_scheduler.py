@@ -1,5 +1,6 @@
 import types
 from app import collect_scheduler as cs
+from app.activity import Activity
 
 
 class FakeSched:
@@ -12,7 +13,9 @@ class FakeSched:
 
 def _app():
     app = types.SimpleNamespace()
-    app.state = types.SimpleNamespace(db=object(), http=object(), collect_scheduler=None)
+    app.state = types.SimpleNamespace(
+        db=object(), http=object(), activity=Activity(), collect_scheduler=None,
+    )
     return app
 
 

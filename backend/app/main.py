@@ -4,6 +4,7 @@ import httpx
 from fastapi import FastAPI, HTTPException
 
 from app import collect_scheduler, db
+from app.activity import Activity
 from app.claude_client import run_claude
 from app.routers import collect as collect_router
 from app.routers import db as db_router
@@ -26,6 +27,7 @@ async def lifespan(app: FastAPI):
         def stop_scheduler(app):  # noqa: ARG001
             return None
     app.state.http = httpx.AsyncClient()
+    app.state.activity = Activity()
     # stale recovery: 이전 프로세스가 처리 중이던 행을 pending으로 되돌림
     async with app.state.db.acquire() as conn:
         await conn.execute("UPDATE jobs SET status='pending' WHERE status='processing'")
