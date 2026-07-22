@@ -1,11 +1,10 @@
 /* ============================================================================
-   career-agent — apple-design foundation
-   §15 typography · §12 materials/depth · §14 reduced-motion/transparency/contrast
-   Design tokens drive every screen; nothing here is random (§16 craft).
+   career-agent — Liquid Glass foundation
+   floating 유리 카드 · 브랜드(레드)/시스템 액센트(블루)/그린 · 무채색 선택 · 문서 리딩
+   apple-design §12 materials/depth · §15 typography · §14 reduced-motion/transparency/contrast
    ============================================================================ */
 
 :root {
-  /* Type — system font ships optical sizing + tracking tables (§15) */
   font-family: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI",
     "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   font-optical-sizing: auto;
@@ -14,558 +13,309 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* Spacing scale (rem so layout scales with Dynamic Type §15) */
-  --sp-1: 0.25rem;
-  --sp-2: 0.5rem;
-  --sp-3: 0.75rem;
-  --sp-4: 1rem;
-  --sp-5: 1.5rem;
-  --sp-6: 2rem;
-  --sp-8: 3rem;
+  /* Spacing (rem → Dynamic Type로 스케일 §15) */
+  --sp-1: 0.25rem; --sp-2: 0.5rem; --sp-3: 0.75rem; --sp-4: 1rem;
+  --sp-5: 1.5rem; --sp-6: 2rem; --sp-8: 3rem;
 
-  /* Radii — bigger surfaces, rounder (§12) */
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 18px;
+  /* Radii — 큰 연속 곡률(§12) */
+  --r-sm: 11px; --r-lozenge: 13px; --r-card: 22px; --r-rail: 26px;
 
-  /* Light palette (default). Apple neutral grays + system blue. */
-  --bg: #f5f5f7;
-  --bg-elev: #ffffff;
-  --text: #1d1d1f;
-  --text-2: #55555a;
-  --text-3: #86868b;
-  --accent: #0071e3;
-  --accent-press: #0060c0;
-  --on-accent: #ffffff;
-  --border: rgba(0, 0, 0, 0.1);
-  --border-strong: rgba(0, 0, 0, 0.16);
-  --good: #1a7f37;
-  --bad: #c9372c;
-  --warn: #9a6700;
+  /* Palette (light). 시스템 액센트=블루, 브랜드=레드, 긍정=그린 */
+  --text: #1d1d1f; --text-2: #57575c; --text-3: #8a8a8f;
+  --accent: #0071e3; --accent-press: #0060c0; --on-accent: #fff;
+  --brand: #ff3b30; --brand-2: #d70015;
+  --good: #1a7f37; --bad: #c9372c;
 
-  /* Materials — translucent chrome floats over content (§12) */
-  --chrome-bg: rgba(250, 250, 252, 0.72);
-  --chrome-edge: rgba(255, 255, 255, 0.5);
-  --chrome-blur: saturate(180%) blur(20px);
-  --card-bg: rgba(255, 255, 255, 0.66);
-  --card-edge: rgba(255, 255, 255, 0.5);
-  --card-blur: saturate(180%) blur(30px);
-  --scrim: rgba(0, 0, 0, 0.04);
+  /* Ambient ground — 뉴트럴 화이트/블랙에 미세한 레드 숨결(브랜드) */
+  --ground:
+    radial-gradient(1100px 760px at 12% -12%, rgba(255, 59, 48, 0.07) 0%, transparent 55%),
+    radial-gradient(900px 720px at 112% 120%, rgba(255, 59, 48, 0.05) 0%, transparent 55%),
+    linear-gradient(180deg, #f4f4f6, #e9e9ec);
 
-  /* Shadows — context-aware depth (§12). Bigger surface = deeper. */
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
-  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
-  --shadow-3: 0 12px 40px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(0, 0, 0, 0.06);
+  /* Glass material — 투명 유리 + 상단 스페큘러 림(§12) */
+  --glass-fill: rgba(255, 255, 255, 0.42);
+  --glass-fill-2: rgba(255, 255, 255, 0.26);
+  --glass-edge: rgba(255, 255, 255, 0.55);
+  --glass-specular: rgba(255, 255, 255, 0.45);
+  --hairline: rgba(0, 0, 0, 0.1);
+  --hover: rgba(0, 0, 0, 0.05);
+  --chip: rgba(0, 0, 0, 0.07);
+  --float: 0 20px 48px -24px rgba(0, 0, 0, 0.22);
+  --float-sm: 0 8px 20px -14px rgba(0, 0, 0, 0.18);
+  --blur: blur(26px) saturate(150%);
 
   color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #000000;
-    --bg-elev: #1c1c1e;
-    --text: #f5f5f7;
-    --text-2: #aeaeb2;
-    --text-3: #8e8e93;
-    --accent: #0a84ff;
-    --accent-press: #409cff;
-    --on-accent: #ffffff;
-    --border: rgba(255, 255, 255, 0.12);
-    --border-strong: rgba(255, 255, 255, 0.2);
-    --good: #30d158;
-    --bad: #ff453a;
-    --warn: #ffd60a;
-    --chrome-bg: rgba(28, 28, 30, 0.72);
-    --chrome-edge: rgba(255, 255, 255, 0.12);
-    --card-bg: rgba(44, 44, 46, 0.6);
-    --card-edge: rgba(255, 255, 255, 0.1);
-    --scrim: rgba(255, 255, 255, 0.04);
-    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-2: 0 4px 14px rgba(0, 0, 0, 0.5);
-    --shadow-3: 0 16px 48px rgba(0, 0, 0, 0.6);
+    --text: #f5f5f7; --text-2: #b4b4ba; --text-3: #88888f;
+    --accent: #0a84ff; --accent-press: #409cff;
+    --brand: #ff453a; --brand-2: #ff6961;
+    --good: #34d97f; --bad: #ff453a;
+    /* 딥 그래파이트(순검정 아님) + 미세 레드 앰비언트 */
+    --ground:
+      radial-gradient(1100px 760px at 12% -12%, rgba(255, 69, 58, 0.12) 0%, transparent 55%),
+      radial-gradient(900px 720px at 112% 120%, rgba(255, 69, 58, 0.07) 0%, transparent 55%),
+      linear-gradient(180deg, #0e0e10, #151517);
+    --glass-fill: rgba(58, 60, 66, 0.34);
+    --glass-fill-2: rgba(48, 50, 56, 0.24);
+    --glass-edge: rgba(255, 255, 255, 0.1);
+    --glass-specular: rgba(255, 255, 255, 0.14);
+    --hairline: rgba(255, 255, 255, 0.08);
+    --hover: rgba(255, 255, 255, 0.06);
+    --chip: rgba(255, 255, 255, 0.09);
+    --float: 0 24px 56px -26px rgba(0, 0, 0, 0.66);
+    --float-sm: 0 10px 24px -16px rgba(0, 0, 0, 0.54);
   }
 }
 
-* {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#root {
-  height: 100%;
-}
-
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
 body {
   margin: 0;
-  background: var(--bg);
   color: var(--text);
-  font-size: 17px; /* Apple body size */
-  line-height: 1.5; /* comfortable body leading (§15) */
-  letter-spacing: 0; /* body tracking near 0 (§15) */
+  background: var(--ground) fixed;
+  font-size: 15px;
+  line-height: 1.5;
+  letter-spacing: 0;
 }
 
-/* Headings: tighter leading + negative tracking as they grow (§15) */
-h1,
-h2,
-h3 {
-  margin: 0;
-  font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: -0.021em;
-}
-h1 {
-  font-size: clamp(1.75rem, 1.2rem + 2vw, 2.5rem);
-  line-height: 1.06;
-  letter-spacing: -0.028em;
-}
-h2 {
-  font-size: 1.3rem;
-}
-h3 {
-  font-size: 1.05rem;
-  letter-spacing: -0.014em;
+/* Headings — 크면 타이트 leading + 음수 트래킹(§15) */
+h1, h2, h3 { margin: 0; font-weight: 600; line-height: 1.1; letter-spacing: -0.021em; }
+h1 { font-size: clamp(1.75rem, 1.2rem + 2vw, 2.5rem); line-height: 1.06; letter-spacing: -0.028em; }
+h2 { font-size: 1.3rem; }
+h3 { font-size: 1.05rem; letter-spacing: -0.014em; }
+.caption { font-size: 0.8125rem; letter-spacing: 0.006em; color: var(--text-3); }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+:focus:not(:focus-visible) { outline: none; }
+
+/* ---- Glass primitive ------------------------------------------------------- */
+.card, .col, .detail-pane, .rail {
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1px 0 0 var(--glass-specular), var(--float);
+  border-radius: var(--r-card);
 }
 
-/* Small text wants slightly positive tracking (§15) */
-.caption {
-  font-size: 0.8125rem;
-  letter-spacing: 0.006em;
-  color: var(--text-3);
-}
-
-a {
-  color: var(--accent);
-  text-decoration: none;
-}
-a:hover {
-  text-decoration: underline;
-}
-
-/* Visible, non-jarring focus ring for keyboard users (§16 craft/accessibility) */
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-:focus:not(:focus-visible) {
-  outline: none;
-}
-
-/* ---- Inputs -------------------------------------------------------------- */
-input {
+/* ---- Inputs ---------------------------------------------------------------- */
+input, select {
   font: inherit;
   color: var(--text);
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
+  background: var(--glass-fill-2);
+  border: 1px solid var(--hairline);
   border-radius: var(--r-sm);
   padding: 0.5rem 0.7rem;
-  transition:
-    border-color 120ms ease,
-    box-shadow 120ms ease;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
-input::placeholder {
-  color: var(--text-3);
-}
-input:focus {
+input::placeholder { color: var(--text-3); }
+input:focus, select:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 }
-
-/* Dropdown filters — native select styled to match, with a chevron affordance */
 select {
-  font: inherit;
-  color: var(--text);
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: 0.5rem 2rem 0.5rem 0.7rem;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
+  appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 2rem;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' fill='none' stroke='%2386868b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 0.6rem center;
-  transition:
-    border-color 120ms ease,
-    box-shadow 120ms ease;
+  background-repeat: no-repeat; background-position: right 0.7rem center;
 }
-select:hover {
-  border-color: var(--border-strong);
-}
-select:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
-}
+select:hover { border-color: color-mix(in srgb, var(--text) 20%, transparent); }
 
-/* ---- Buttons — instant press feedback (§1 response) ---------------------- */
+/* ---- Buttons — instant press feedback (§1) --------------------------------- */
 button {
-  font: inherit;
-  font-weight: 500;
-  color: var(--text);
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
+  font: inherit; font-weight: 500; color: var(--text);
+  background: var(--glass-fill-2);
+  border: 1px solid var(--hairline);
   border-radius: var(--r-sm);
-  padding: 0.5rem 0.9rem;
-  cursor: pointer;
-  /* Feedback lives on the press, and it's instant (§1) */
-  transition:
-    transform 100ms ease-out,
-    background-color 120ms ease,
-    border-color 120ms ease,
-    opacity 120ms ease;
+  padding: 0.5rem 0.9rem; cursor: pointer;
+  transition: transform 100ms ease-out, background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
   touch-action: manipulation;
 }
-button:hover:not(:disabled) {
-  border-color: var(--border-strong);
-}
-button:active:not(:disabled) {
-  transform: scale(0.97);
-}
-button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
+button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--text) 20%, transparent); }
+button:active:not(:disabled) { transform: scale(0.97); }
+button:disabled { opacity: 0.45; cursor: default; }
 .btn-primary {
-  background: var(--accent);
-  color: var(--on-accent);
-  border-color: transparent;
+  color: var(--on-accent); border-color: transparent;
+  background: linear-gradient(180deg, var(--accent), var(--accent-press));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
-.btn-primary:hover:not(:disabled) {
-  background: var(--accent-press);
-  border-color: transparent;
-}
+.btn-primary:hover:not(:disabled) { border-color: transparent; }
 
-/* ---- Materials — translucent floating layers (§12) ----------------------- */
-.chrome {
-  background: var(--chrome-bg);
-  -webkit-backdrop-filter: var(--chrome-blur);
-  backdrop-filter: var(--chrome-blur);
-  border-bottom: 1px solid var(--chrome-edge);
-}
-.card {
-  background: var(--card-bg);
-  -webkit-backdrop-filter: var(--card-blur);
-  backdrop-filter: var(--card-blur);
-  border: 1px solid var(--card-edge);
-  border-radius: var(--r-lg);
-  box-shadow: var(--shadow-2);
-}
-
-/* Status pills — status/completion/warning/error feedback (§16) */
+/* ---- Pills — status/completion/warning/error (§16) ------------------------- */
 .pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-  background: var(--scrim);
-  color: var(--text-2);
-  white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.01em;
+  padding: 0.15rem 0.5rem; border-radius: 999px;
+  background: var(--chip); color: var(--text-2); white-space: nowrap;
 }
-.pill-good {
-  color: var(--good);
-  background: color-mix(in srgb, var(--good) 14%, transparent);
-}
-.pill-bad {
-  color: var(--bad);
-  background: color-mix(in srgb, var(--bad) 14%, transparent);
-}
-.pill-accent {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-}
-/* 선택 상태 전용 — 꽉 찬 액센트(정보 배지와 확실히 구분) */
+.pill-good { color: var(--good); background: color-mix(in srgb, var(--good) 15%, transparent); }
+.pill-bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 15%, transparent); }
+.pill-accent { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+/* 선택됨 — 색 없이 뉴트럴(테두리+굵기+체크마크로 구분) */
 .pill-solid {
-  color: var(--on-accent);
-  background: var(--accent);
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 22%, transparent);
+  font-weight: 700;
 }
 
-/* ---- App shell: left vertical nav rail + content ------------------------- */
-.shell {
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-}
+/* ---- App shell: floating rail + content ------------------------------------ */
+.shell { display: flex; height: 100vh; overflow: hidden; padding: 14px; gap: 14px; }
 .rail {
-  flex: 0 0 62px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 14px 8px;
-  background: var(--chrome-bg);
-  -webkit-backdrop-filter: var(--chrome-blur);
-  backdrop-filter: var(--chrome-blur);
-  border-right: 1px solid var(--border);
-  z-index: 10;
+  flex: 0 0 62px; border-radius: var(--r-rail);
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  padding: 13px 9px; z-index: 10;
 }
 .rail .logo {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: linear-gradient(160deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #7b61ff));
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-weight: 700;
-  margin-bottom: 10px;
+  width: 38px; height: 38px; border-radius: 12px;
+  background: linear-gradient(150deg, var(--brand), var(--brand-2));
+  display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 17px;
+  text-transform: uppercase;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4); margin-bottom: 6px;
 }
 .rail a {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  color: var(--text-3);
-  font-size: 20px;
-  text-decoration: none;
-  transition: background-color 120ms ease, color 120ms ease;
+  width: 44px; height: 44px; border-radius: 14px;
+  display: grid; place-items: center;
+  color: var(--text-3); font-size: 19px; text-decoration: none;
+  transition: background-color 120ms ease, color 120ms ease, transform 120ms ease;
 }
-.rail a:hover {
-  background: var(--scrim);
-}
+.rail a:hover { background: var(--hover); color: var(--text-2); }
+.rail a:active { transform: scale(0.92); }
+/* 활성 뷰(뷰 선택) — 색 없이 뉴트럴 채움 */
 .rail a.active {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  box-shadow: inset 0 1px 0 var(--glass-specular);
 }
-.content {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: auto;
-}
+.content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
 
-/* ---- Explorer: companies | jobs | detail --------------------------------- */
-.explorer {
-  display: grid;
-  grid-template-columns: 300px 340px 1fr;
-  height: 100%;
-  min-height: 0;
+/* ---- Explorer: 3 floating glass cards -------------------------------------- */
+.explorer { display: grid; grid-template-columns: 300px 340px 1fr; gap: 14px; height: 100%; min-height: 0; }
+.col { display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
+.col-head { padding: 16px 17px 12px; flex: 0 0 auto; position: relative; }
+/* 스크롤 엣지 — 하드 보더 대신 양끝이 사라지는 fade 라인(§12) */
+.col-head::after {
+  content: ""; position: absolute; left: 14px; right: 14px; bottom: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--hairline) 10%, var(--hairline) 90%, transparent);
 }
-.col {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border-right: 1px solid var(--border);
-}
-.col-head {
-  padding: 14px 16px 10px;
-  background: var(--chrome-bg);
-  -webkit-backdrop-filter: var(--chrome-blur);
-  backdrop-filter: var(--chrome-blur);
-  border-bottom: 1px solid var(--border);
-}
-.col-list {
-  overflow: auto;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-/* 기업별 그룹 + sticky 헤더(스크롤해도 현재 기업명이 맨 위에 붙어 상시 표시) */
-.job-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.job-group-head {
-  position: sticky;
-  top: -8px; /* col-list padding-top(8px) 상쇄 → 스크롤 시 맨 위에 flush */
-  z-index: 2;
-  margin: -8px -8px 0; /* col-list padding을 뚫고 전체 너비로 */
-  padding: 8px 12px;
-  background: color-mix(in srgb, var(--bg) 86%, transparent);
-  -webkit-backdrop-filter: saturate(180%) blur(12px);
-  backdrop-filter: saturate(180%) blur(12px);
-  border-bottom: 1px solid var(--border);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  color: var(--text-2);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.job-group-count {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--text-3);
-  background: var(--scrim);
-  border-radius: 999px;
-  padding: 0 0.4rem;
-}
-@media (prefers-reduced-transparency: reduce) {
-  .job-group-head {
-    background: var(--bg);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-}
-.col-filters {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-}
+.col-list { overflow: auto; padding: 8px 10px 14px; display: flex; flex-direction: column; gap: 6px; scrollbar-width: thin; }
+.col-filters { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+
+/* item lozenge + 무채색 선택 */
 .item {
-  padding: 10px 12px;
-  border-radius: 12px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  background: transparent;
-  text-align: left;
-  width: 100%;
-  font: inherit;
-  color: inherit;
+  padding: 10px 12px; border-radius: var(--r-lozenge); cursor: pointer;
+  border: 1px solid transparent; background: transparent; text-align: left;
+  width: 100%; font: inherit; color: inherit;
   transition: transform 120ms ease, background-color 120ms ease;
 }
-.item:hover {
-  background: var(--scrim);
-}
-/* 선택된 항목은 명확하게: 좌측 액센트 바 + 강한 배경 + 액센트 이름 */
+.item:hover { background: var(--hover); }
+.item:active { transform: scale(0.99); }
+.item .name { font-weight: 600; letter-spacing: -0.01em; }
+.item .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+/* 선택 — 색 없이 뉴트럴 유리 채움(라이트=검정계열/다크=흰계열 자동 반전) */
 .item.on {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  box-shadow: inset 3px 0 0 0 var(--accent);
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  border-color: color-mix(in srgb, var(--text) 18%, transparent);
+  box-shadow: inset 0 1px 0 var(--glass-specular);
 }
-.item.on .name {
-  color: var(--accent);
+.item.on .name { color: var(--text); }
+
+/* sticky 각진 섹션 밴드 — 리스트 폭을 꽉 채우고 밑줄만(둥근 칩 아님) */
+.job-group { display: flex; flex-direction: column; gap: 6px; }
+.job-group-head {
+  position: sticky; top: -8px; z-index: 3;
+  margin: -8px -10px 4px; padding: 9px 12px 8px;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+  box-shadow: 0 1px 0 var(--hairline);
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--text-3); display: flex; align-items: center; gap: 7px;
 }
-.item:active {
-  transform: scale(0.99);
-}
-.item .name {
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-.item .row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.detail-pane {
-  overflow: auto;
-  padding: 28px clamp(20px, 4vw, 44px);
+.job-group-count {
+  font-size: 0.66rem; font-weight: 600; color: var(--text-3);
+  background: var(--chip); border-radius: 999px; padding: 0 0.42rem; letter-spacing: 0;
 }
 
-/* 텍스트 링크형 버튼(선택 해제 등) */
+/* 텍스트 버튼(선택 해제 등) — 블루 링크 */
 .linklike {
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--accent);
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
+  font: inherit; font-size: 0.8rem; font-weight: 600; color: var(--accent);
+  background: none; border: none; padding: 0; cursor: pointer;
 }
-.linklike:hover {
-  text-decoration: underline;
-}
-
-/* Back affordance — only shown in the mobile single-pane drill-down. */
+.linklike:hover { text-decoration: underline; }
 .mobile-back {
-  display: none;
-  align-items: center;
-  gap: 4px;
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--accent);
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
+  display: none; align-items: center; gap: 4px; font: inherit; font-size: 0.9rem; font-weight: 500;
+  color: var(--accent); background: none; border: none; padding: 0; cursor: pointer;
 }
 
-/* Medium: keep all three panels, tighten the two list columns so they fit. */
-@media (max-width: 1080px) {
-  .explorer {
-    grid-template-columns: 244px 288px 1fr;
-  }
+/* ---- Detail card — layer 3 를 '읽는 문서'로 -------------------------------- */
+.detail-pane { display: block; overflow: auto; padding: 32px clamp(20px, 5vw, 56px) 64px; }
+.doc { max-width: 46rem; margin: 0 auto; }              /* 편안한 측정폭 + 가운데 정렬 */
+.doc-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
+.doc > h1 { font-size: clamp(1.65rem, 1.15rem + 1.7vw, 2.3rem); letter-spacing: -0.028em; line-height: 1.08; }
+.doc .company { color: var(--text-2); font-weight: 600; font-size: 1.05rem; margin-top: 9px; }
+.doc .sub { color: var(--text-3); font-size: 0.9rem; margin-top: 4px; }
+.doc .origin { font-size: 0.88rem; color: var(--accent); margin-top: 15px; display: inline-flex; gap: 4px; }
+
+.eyebrow-sm { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+
+/* 요약 — 박스 대신 조용한 좌측 룰 + 넉넉한 행간 */
+.lead-wrap { margin-top: 30px; }
+.lead {
+  margin-top: 8px; padding-left: 16px; border-left: 3px solid var(--hairline);
+  white-space: pre-wrap; color: var(--text); font-size: 1.02rem; line-height: 1.72;
 }
 
-/* Small: single-pane drill-down (기업 → 공고 → 상세) with back buttons.
-   Which pane shows is driven by [data-mobile] set from the selection state. */
+/* 리서치 — 항목별 박스 제거, hanging-label(라벨|본문) 문서 레이아웃 */
+.section-title {
+  margin: 46px 0 2px; font-size: 1.25rem; letter-spacing: -0.02em;
+  padding-bottom: 12px; border-bottom: 1px solid var(--hairline);
+}
+.field { display: grid; grid-template-columns: 7.5rem 1fr; gap: 22px; padding: 22px 2px; align-items: start; }
+.field + .field { border-top: 1px solid var(--hairline); }
+.flabel { font-size: 0.95rem; font-weight: 700; color: var(--text-2); letter-spacing: -0.005em; padding-top: 2px; }
+.fbody { color: var(--text); font-size: 1.02rem; line-height: 1.75; }
+
+/* generic card padding (Home 등) */
+.card { padding: var(--sp-5); }
+
+/* ---- Responsive ------------------------------------------------------------ */
+@media (max-width: 1080px) { .explorer { grid-template-columns: 244px 288px 1fr; } }
 @media (max-width: 900px) {
-  .explorer {
-    grid-template-columns: 1fr;
-  }
-  .explorer .col,
-  .explorer .detail-pane {
-    display: none;
-  }
-  .explorer[data-mobile="companies"] .col-companies {
-    display: flex;
-  }
-  .explorer[data-mobile="jobs"] .col-jobs {
-    display: flex;
-  }
-  .explorer[data-mobile="detail"] .detail-pane {
-    display: block;
-  }
-  .explorer .col {
-    max-height: none;
-    height: 100%;
-    border-right: none;
-  }
-  .detail-pane {
-    padding: 20px clamp(16px, 5vw, 28px);
-  }
-  .mobile-back {
-    display: inline-flex;
-  }
+  .explorer { grid-template-columns: 1fr; }
+  .explorer .col, .explorer .detail-pane { display: none; }
+  .explorer[data-mobile="companies"] .col-companies { display: flex; }
+  .explorer[data-mobile="jobs"] .col-jobs { display: flex; }
+  .explorer[data-mobile="detail"] .detail-pane { display: block; }
+  .explorer .col { height: 100%; }
+  .detail-pane { padding: 22px clamp(16px, 5vw, 28px) 40px; }
+  .field { grid-template-columns: 1fr; gap: 6px; padding: 18px 2px; }
+  .mobile-back { display: inline-flex; }
 }
 
 /* ============================================================================
    §14 Accessibility — reduced motion / transparency / contrast
    ============================================================================ */
 @media (prefers-reduced-transparency: reduce) {
-  :root {
-    --chrome-bg: var(--bg-elev);
-    --chrome-blur: none;
-    --card-bg: var(--bg-elev);
-    --card-blur: none;
-  }
-  .chrome,
-  .card {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+  .card, .col, .detail-pane, .rail, .job-group-head {
+    -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--glass-fill);
   }
 }
-
 @media (prefers-contrast: more) {
-  :root {
-    --border: rgba(0, 0, 0, 0.5);
-    --border-strong: rgba(0, 0, 0, 0.7);
-    --text-3: #4b4b50;
-    --chrome-bg: var(--bg-elev);
-    --card-bg: var(--bg-elev);
-  }
+  :root { --hairline: color-mix(in srgb, var(--text) 42%, transparent); --text-3: #4b4b50; }
 }
-
-/* Springs/slides → gentle cross-fades; drop overshoot (§14).
-   Motion's MotionConfig(reducedMotion) handles JS springs; this covers CSS. */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 120ms !important;
     scroll-behavior: auto !important;
   }
-  button:active:not(:disabled) {
-    transform: none;
-  }
+  button:active:not(:disabled), .item:active { transform: none; }
 }

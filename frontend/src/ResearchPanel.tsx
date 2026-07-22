@@ -32,27 +32,17 @@ function Working() {
   );
 }
 
-/** A research field — materializes on arrival (rise+fade), not a bare paragraph (§12). */
+/** 리서치 항목 — 박스 없이 hanging-label(라벨|본문) 문서 행. 도착 시 rise+fade(§12). */
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <motion.div
+      className="field"
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={SPRING_UI}
-      style={{ marginBottom: "var(--sp-5)" }}
     >
-      <div
-        style={{
-          marginBottom: 6,
-          fontWeight: 600,
-          fontSize: "1.15rem",
-          letterSpacing: "-0.015em",
-          color: "var(--text)",
-        }}
-      >
-        {label}
-      </div>
-      <div style={{ lineHeight: 1.65, color: "var(--text-2)" }}>{children}</div>
+      <div className="flabel">{label}</div>
+      <div className="fbody">{children}</div>
     </motion.div>
   );
 }
@@ -106,24 +96,22 @@ export function ResearchPanel({
     jrStatus === "done" ? "재리서치" : jrStatus === "failed" ? "재시도" : "리서치 실행";
 
   return (
-    // Parallel, non-blocking surface — translucent, offset, no scrim (§12).
+    // 문서 흐름 안의 한 섹션 — 별도 카드 박스 없이 리딩에 녹아든다.
     <motion.section
-      className="card"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ ...SPRING_UI, delay: 0.08 }}
-      style={{ padding: "var(--sp-5)", marginTop: "var(--sp-5)" }}
     >
-      <div
+      <h2
+        className="section-title"
         style={{
           display: "flex",
-          alignItems: "center",
+          alignItems: "baseline",
           justifyContent: "space-between",
           gap: "var(--sp-3)",
-          marginBottom: "var(--sp-4)",
         }}
       >
-        <h2 style={{ fontSize: "1.1rem" }}>🔍 리서치</h2>
+        <span>리서치</span>
         <AnimatePresence mode="wait">
           {(busy || jrStatus === "running") && (
             <motion.span
@@ -149,7 +137,7 @@ export function ResearchPanel({
             </motion.span>
           )}
         </AnimatePresence>
-      </div>
+      </h2>
 
       {cr?.overview && <Field label="기업 개요">{cr.overview}</Field>}
       {cr?.stability && <Field label="안정성">{cr.stability}</Field>}
@@ -179,7 +167,7 @@ export function ResearchPanel({
           onClick={() => onResearch(jrStatus === "done")}
           disabled={busy}
           // 분석 내용과 액션 버튼을 확실히 분리(§16 여백으로 그룹핑)
-          style={{ marginTop: hasBody || jrStatus ? "var(--sp-3)" : 0 }}
+          style={{ marginTop: "var(--sp-5)" }}
           // Momentum bounce — this fires only from the user's own press (§4).
           whileTap={{ scale: 0.97 }}
           transition={SPRING_MOMENTUM}

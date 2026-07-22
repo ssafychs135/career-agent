@@ -68,56 +68,35 @@ export default function JobDetailView({ source, jobId }: { source: string; jobId
 
   return (
     <motion.article
+      className="doc"
       key={`${source}/${jobId}`}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={SPRING_UI}
     >
-      <div className="caption" data-testid="job-company" style={{ marginBottom: 4 }}>
+      {job.status && (
+        <div className="doc-meta">
+          <span className="pill">{job.status}</span>
+        </div>
+      )}
+      <h1 data-testid="job-title">{job.title}</h1>
+      <div className="company" data-testid="job-company">
         {job.company}
       </div>
-      <h1
-        data-testid="job-title"
-        style={{
-          fontSize: "clamp(2rem, 1.3rem + 2.4vw, 3rem)",
-          lineHeight: 1.05,
-          letterSpacing: "-0.03em",
-        }}
-      >
-        {job.title}
-      </h1>
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 8,
-          alignItems: "center",
-          margin: "var(--sp-3) 0 var(--sp-5)",
-        }}
-      >
-        {job.locations && <span className="pill">{job.locations}</span>}
-        {job.status && <span className="pill">{job.status}</span>}
-        {/* 어느 사이트에서 수집된 공고인지 명시 */}
-        <span className="pill pill-accent">수집: {siteName(source)}</span>
-        {job.url && (
-          <a href={job.url} target="_blank" rel="noreferrer" style={{ fontSize: "0.9rem", fontWeight: 500 }}>
-            {siteName(source)}에서 원문 보기 ↗
-          </a>
-        )}
-      </div>
+      {job.locations && <div className="sub">{job.locations}</div>}
+      {/* 출처는 원문보기 링크에만 표시(별도 수집 뱃지 제거) */}
+      {job.url && (
+        <a className="origin" href={job.url} target="_blank" rel="noreferrer">
+          {siteName(source)}에서 원문 보기 ↗
+        </a>
+      )}
 
       {job.summary && (
-        <p
-          style={{
-            color: "var(--text-2)",
-            lineHeight: 1.7,
-            maxWidth: "64ch",
-            marginBottom: "var(--sp-5)",
-            whiteSpace: "pre-wrap", // 요약의 1·2·3 줄바꿈(\n) 보존
-          }}
-        >
-          {job.summary}
-        </p>
+        <div className="lead-wrap">
+          <div className="eyebrow-sm">요약</div>
+          {/* 요약의 1·2·3 줄바꿈(\n) 보존 */}
+          <div className="lead">{job.summary}</div>
+        </div>
       )}
 
       <ResearchPanel
