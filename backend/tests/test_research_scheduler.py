@@ -73,3 +73,28 @@ async def test_tick_processes_pending(monkeypatch):
 
     await scheduler.tick(lambda: object())
     assert calls == [("company", "토스"), ("job", "wanted", "42")]
+
+
+async def test_tick_threads_activity(monkeypatch):
+    seen = []
+
+    async def pending_companies(db, limit):
+        return ["토스"]
+
+    async def pending_jobs(db, limit):
+        return [("wanted", "42")]
+
+    async def research_company(db, company, **kw):
+        seen.append(("company", kw.get("activity")))
+
+    async def research_job(db, source, job_id, **kw):
+        seen.append(("job", kw.get("activity")))
+
+    monkeypatch.setattr(scheduler.store, "pending_companies", pending_companies)
+    monkeypatch.setattr(scheduler.store, "pending_jobs", pending_jobs)
+    monkeypatch.setattr(scheduler.runner, "research_company", research_company)
+    monkeypatch.setattr(scheduler.runner, "research_job", research_job)
+
+    sentinel = object()
+    await scheduler.tick(lambda: object(), lambda: sentinel)
+    assert seen == [("company", sentinel), ("job", sentinel)]

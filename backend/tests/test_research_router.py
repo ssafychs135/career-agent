@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import app.db  # Plan ② 제공 (계약 1번: get_conn/connect/close)
+from app.activity import Activity
 from app.routers import research
 
 
@@ -9,6 +10,7 @@ def make_app(monkeypatch):
     """research 라우터가 붙고 get_conn·app.state.db가 갖춰진 테스트 앱."""
     app = FastAPI()
     app.state.db = object()  # BackgroundTask로 넘길 풀 자리(러너는 fake라 실사용 안 함)
+    app.state.activity = Activity()  # 라우터가 러너로 넘길 activity
     research.init_research(app)
     # 계약 1번 정본 의존성 이름 = get_conn. request 스코프 conn 오버라이드.
     app.dependency_overrides[research.get_conn] = lambda: object()
@@ -19,7 +21,7 @@ def test_company_trigger_marks_running_then_202(monkeypatch):
     ran = []
     app = make_app(monkeypatch)
 
-    async def fake_company(db, company, url="", *, force=False):
+    async def fake_company(db, company, url="", *, force=False, activity=None):
         ran.append(("company", company, force))
 
     async def fake_mark(conn, company):
@@ -58,7 +60,7 @@ def test_job_trigger_marks_running_then_202(monkeypatch):
     async def fake_mark(conn, source, job_id, company):
         ran.append(("mark", source, job_id, company))
 
-    async def fake_job(db, source, job_id, *, force=False):
+    async def fake_job(db, source, job_id, *, force=False, activity=None):
         ran.append((source, job_id, force))
 
     monkeypatch.setattr(research.store, "get_job_meta", found)

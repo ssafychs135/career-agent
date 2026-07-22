@@ -26,7 +26,8 @@ async def trigger_company(
     await store.mark_company_running(conn, req.company)
     # BackgroundTask에는 요청 스코프 conn(응답 후 반납됨) 대신 풀을 넘겨 러너가 자체 acquire.
     bg.add_task(
-        runner.research_company, request.app.state.db, req.company, "", force=req.force
+        runner.research_company, request.app.state.db, req.company, "", force=req.force,
+        activity=request.app.state.activity,
     )
     return {"status": "running", "company": req.company}
 
@@ -41,7 +42,8 @@ async def trigger_job(
     # 계약 7번: 202 전 running upsert.
     await store.mark_job_running(conn, req.source, req.job_id, meta["company"])
     bg.add_task(
-        runner.research_job, request.app.state.db, req.source, req.job_id, force=req.force
+        runner.research_job, request.app.state.db, req.source, req.job_id, force=req.force,
+        activity=request.app.state.activity,
     )
     return {"status": "running", "source": req.source, "job_id": req.job_id}
 

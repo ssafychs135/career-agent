@@ -12,13 +12,14 @@ from app.research.config import (
 log = logging.getLogger("research.scheduler")
 
 
-async def tick(get_pool) -> None:
+async def tick(get_pool, get_activity=lambda: None) -> None:
     """미리서치 대상 회사/공고를 limit만큼 처리(자동모드 잡 본체)."""
     db = get_pool()
+    activity = get_activity()
     for company in await store.pending_companies(db, RESEARCH_AUTO_LIMIT):
-        await runner.research_company(db, company)
+        await runner.research_company(db, company, activity=activity)
     for source, job_id in await store.pending_jobs(db, RESEARCH_AUTO_LIMIT):
-        await runner.research_job(db, source, job_id)
+        await runner.research_job(db, source, job_id, activity=activity)
 
 
 def start_scheduler(app) -> None:
@@ -38,7 +39,7 @@ def start_scheduler(app) -> None:
     # tick은 get_pool()로 풀을 얻는다 → app.state.db(Plan ② lifespan이 채움)를 지연 참조.
     sched.add_job(
         tick, "interval", minutes=RESEARCH_AUTO_INTERVAL_MIN,
-        args=[lambda: app.state.db],
+        args=[lambda: app.state.db, lambda: app.state.activity],
     )
     sched.start()
     app.state.research_scheduler = sched
