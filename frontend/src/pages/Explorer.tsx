@@ -150,9 +150,9 @@ export default function Explorer() {
                 <div className="row">
                   <span className="name">{c.name}</span>
                   {on ? (
-                    <span className="pill pill-accent">선택됨</span>
+                    <span className="pill pill-solid">✓ 선택됨</span>
                   ) : (
-                    c.hasResearch && <span className="pill pill-accent">기업✓</span>
+                    c.hasResearch && <span className="pill">기업 리서치</span>
                   )}
                 </div>
                 <div className="caption" style={{ marginTop: 2 }}>
@@ -202,7 +202,7 @@ export default function Explorer() {
                   <span className="caption">{j.locations}</span>
                   <span style={{ display: "flex", gap: 4 }}>
                     {j.status && <span className="pill">{j.status}</span>}
-                    {j.has_job_research && <span className="pill pill-accent">분석</span>}
+                    {j.has_job_research && <span className="pill">분석✓</span>}
                   </span>
                 </div>
               </button>

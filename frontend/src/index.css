@@ -281,6 +281,11 @@ button:disabled {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
+/* 선택 상태 전용 — 꽉 찬 액센트(정보 배지와 확실히 구분) */
+.pill-solid {
+  color: var(--on-accent);
+  background: var(--accent);
+}
 
 /* ---- App shell: left vertical nav rail + content ------------------------- */
 .shell {
