@@ -5,7 +5,7 @@
 
 ## 목표
 
-n8n의 공고 수집(스크레이핑) 파이프라인을 career-agent 백엔드로 이관하고, 지금 n8n의 env·워크플로우 노드에 흩어져 있는 운영 변수를 DB 기반 **설정 관리 페이지** 한 곳에서 편집할 수 있게 한다. 기존 워커 동작(소스·필터·요약·헬스게이트·재시도)을 그대로 보존한다.
+n8n의 공고 수집(스크레이핑) 파이프라인을 career-agent 백엔드로 이관하고, 지금 n8n의 env·워크플로우 노드에 흩어져 있는 운영 변수를 DB 기반 **설정 관리 페이지** 한 곳에서 편집할 수 있게 한다. 더해 세 파이프라인(수집·요약·claude -p 리서치)이 **지금 무슨 작업을 어느 단계에서 실행 중인지** 실시간으로 보는 **상태 모니터 페이지**를 제공한다. 기존 워커 동작(소스·필터·요약·헬스게이트·재시도)을 그대로 보존한다.
 
 ## 배경 — 지금 n8n이 하는 일
 
@@ -58,16 +58,21 @@ career-agent/backend/app/
 │   ├── summarize.py            ← summary_backend 스위치 (local LM Studio | claude)
 │   └── health.py               ← 로컬 LLM 헬스체크 게이트
 ├── settings_repo.py            ← app_settings 싱글턴 CRUD
+├── activity.py                 ← 신규: 인메모리 Activity Registry (app.state 공유 상태)
+├── claude_client.py            ← 수정: stream-json 파싱 + on_step 콜백
 ├── routers/
 │   ├── settings.py             ← GET/PUT /api/settings
-│   └── collect.py              ← POST /api/collect/run, /api/collect/worker/run
+│   ├── collect.py              ← POST /api/collect/run, /api/collect/worker/run
+│   └── status.py               ← 신규: GET /api/status (라이브 실행 상태)
 └── research/scheduler.py       ← collector·worker 잡 등록 추가(기존 파일 확장)
 
 frontend/src/
 ├── pages/Settings.tsx          ← 설정 관리 페이지 (/settings)
+├── pages/Status.tsx            ← 신규: 라이브 상태 모니터 (/status)
 ├── components/ChipInput.tsx    ← text[]/int[] 공용 칩 입력
 ├── components/Segmented.tsx    ← summary_backend 토글
-└── settingsApi.ts              ← getSettings/putSettings/runCollect/runWorker
+├── settingsApi.ts              ← getSettings/putSettings/runCollect/runWorker
+└── statusApi.ts                ← getStatus (폴링)
 ```
 
 ### 데이터 흐름
@@ -219,6 +224,77 @@ Settings.tsx      ← 페이지: GET/PUT, dirty 상태, 섹션 조립
 ```
 - 검증은 백엔드 Pydantic이 정본, 프론트는 UX용 선검증.
 
+## 모니터링 — 라이브 실행 상태
+
+"서버가 지금 무슨 작업을 어느 단계에서 실행 중인가"를 실시간으로 본다. DB 카운트가 아니라 **실행 중 작업이 자기 진행 단계를 게시**하는 방식.
+
+### 데이터 소스: 인메모리 Activity Registry
+
+- `app.state.activity` — 파이프라인별 현재 상태 dict: `{stage, detail, progress, started_at}`.
+- 실행 중 collector/worker/research가 단계 이동 시마다 이 구조를 갱신.
+- **단일 프로세스(APScheduler in-process) 아키텍처라 가능** — 파이프라인과 status 엔드포인트가 같은 프로세스라 별도 DB 하트비트·이벤트버스 불필요. (재시작 시 초기화됨 = 라이브 상태이므로 OK.)
+- `activity.py`가 registry 접근을 캡슐화(`set_stage(pipeline, ...)`, `clear(pipeline)`, `snapshot()`).
+
+### 파이프라인별 게시 단계
+
+| 파이프라인 | 단계 | 진행률 |
+|---|---|---|
+| Collector | `idle` → `스크레이핑(소스·카테고리/키워드·페이지)` → `pending 적재` → `idle` | 페이지 n/전체, 누적 건수 |
+| Worker | `idle` → `배치 N건 점유` → `상세조회(job)` → `요약 중(job·backend)` → `기록` | i / batch |
+| claude -p 리서치 | `idle` → `기업 리서치 중` → (claude 서브스텝) → `공고 리서치 중` → (claude 서브스텝) → `파싱` | 실행 중 작업 |
+
+### claude -p 스트림 파싱 (결정: B — 내부 서브스텝까지)
+
+현재 `claude_client.run_claude`는 `--output-format json`(블로킹, 최종 봉투 1개). 서브스텝을 보려면 **스트리밍으로 전환**:
+
+- `--output-format json` → **`--output-format stream-json --verbose`** (`-p`+stream-json은 `--verbose` 필수).
+- `proc.communicate()`(끝까지 대기) → **`proc.stdout` 라인별 NDJSON 파싱**(실시간). 이벤트 순서: `system(init)` → `assistant`(텍스트/`tool_use`) → `user`(tool_result) → `result`(최종).
+- `type:result` 라인에서 기존처럼 `result` 추출·반환 → **반환 계약 유지**. 타임아웃은 `communicate()` 대신 전체 데드라인으로 재구성, 기존 실패·타임아웃 `RuntimeError` 처리 보존.
+- **결합 분리 — 콜백 주입**: `run_claude(prompt, *, on_step=None, ...)`. 이벤트마다 `on_step(label)` 호출. `claude_client`는 Activity Registry를 모름 — 러너가 `on_step`에 registry 갱신 콜백을 꽂음.
+- 잘린 라인·비JSON 라인은 무시(방어적 파싱).
+
+**tool_use → 단계 라벨 매핑:**
+
+| claude 이벤트 | 라벨 |
+|---|---|
+| `WebSearch` | `웹 검색: "{query}"` |
+| `WebFetch` | `페이지 확인: {domain}` |
+| assistant 텍스트(도구 없음) | `분석·작성 중` |
+| 기타 tool | `{tool} 실행 중` |
+
+### API
+
+```
+GET /api/status → 200 {
+  activity: { collector: {stage, detail, progress, started_at}|null,
+              worker:    {...}|null,
+              research:  [ {stage, detail, ...} ]  // 동시 여러 건 가능 },
+  counts:   { pending, done, failed, skipped, research_running },  // DB 파생(보조)
+  llm_health: 'ok'|'down',
+  enabled:  bool,
+  next_ticks: { collector: <다음 09:00>, worker: <다음 주기> }
+}
+```
+- `counts`·`llm_health`는 파생(싸므로 라이브 뷰의 맥락으로 함께 반환).
+
+### UI: `/status` 페이지
+
+- 실행 중 카드(수집기/워커/리서치): stage + progress bar + detail. idle이면 "다음 예정 틱".
+- 상단 보조 스트립: 백로그 `pending N`, LLM 헬스 pill, `enabled` 상태.
+- 프론트 **2~3초 폴링**(`getStatus`, 리서치 패널 폴링 패턴 재사용). 페이지 벗어나면 폴링 중단.
+- 렌더 예:
+  ```
+  ● 실행 중
+    워커     요약 중  ▓▓▓▓░░ 4/20   "토스 · 백엔드 엔지니어" (claude)
+    리서치   웹 검색 중             "당근마켓 자본금 매출"
+    수집기   idle · 다음 09:00
+  ```
+- 디자인 토큰 재사용(liquid-glass, `Working` 점, pill, `SPRING_UI`). 애니는 `prefers-reduced-motion` 준수.
+
+### 범위
+
+- v1 = **라이브 활동 + 파생 카운트**. 실행 이력 로그(`pipeline_runs` 테이블)는 이번 want("지금 실행/단계")와 별개라 **future**(무인 운영 강화 시 추가).
+
 ## 테스트
 
 **백엔드**
@@ -229,11 +305,15 @@ Settings.tsx      ← 페이지: GET/PUT, dirty 상태, 섹션 조립
 - dedup: 같은 (source, job_id) 재삽입 시 신규 0.
 - 헬스게이트: LLM 다운 시 틱 스킵, fail 안 함.
 - summarize 스위치: local/claude 분기.
+- Activity Registry: set_stage/clear/snapshot, 파이프라인별 독립 키, research 동시 여러 건.
+- claude_client 스트림 파서: NDJSON 이벤트 fixture → 단계 라벨(tool_use 매핑)·최종 `result` 추출, 잘린/비JSON 라인 무시, `on_step` 호출 순서.
+- `GET /api/status` 응답 구조(activity + counts + llm_health + next_ticks).
 
 **프론트**
 - ChipInput: 추가/중복/빈값/숫자모드 거부.
 - dirty→저장 흐름(모킹 PUT), 422 에러 렌더.
 - 수동 트리거 dirty 비활성.
+- Status: 모킹 `getStatus` → 실행 중 카드/진행률/idle 렌더, 폴링 갱신, 언마운트 시 폴링 중단.
 
 ## 범위 밖 (YAGNI)
 
@@ -241,3 +321,4 @@ Settings.tsx      ← 페이지: GET/PUT, dirty 상태, 섹션 조립
 - 마스킹/write-only 시크릿 처리(과설계로 판단).
 - 별도 worker 컨테이너, 외부 cron.
 - 수집 소스 추가(사람인 등) — 현행 원티드+점핏만 이식.
+- 실행 이력 로그 테이블(`pipeline_runs`) — 라이브 모니터는 v1, 과거 이력·실패원인 아카이브는 future.
