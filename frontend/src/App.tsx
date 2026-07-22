@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import Home from "./pages/Home";
 import Explorer from "./pages/Explorer";
+import Settings from "./pages/Settings";
 
 const active = ({ isActive }: { isActive: boolean }) => (isActive ? "active" : "");
 
@@ -17,6 +18,9 @@ function Rail() {
       <NavLink to="/jobs" title="탐색" className={active}>
         ◱
       </NavLink>
+      <NavLink to="/settings" title="설정" className={active}>
+        ⚙
+      </NavLink>
       <span style={{ flex: 1 }} />
     </nav>
   );
@@ -32,6 +36,7 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/jobs" element={<Explorer />} />
             <Route path="/jobs/:source/:jobId" element={<Explorer />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </div>
       </div>
