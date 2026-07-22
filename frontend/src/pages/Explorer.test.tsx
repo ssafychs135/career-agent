@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { vi, test, expect, beforeEach, type Mock } from "vitest";
 import Explorer from "./Explorer";
@@ -81,6 +81,23 @@ test("region filter narrows the company list", async () => {
   fireEvent.change(screen.getByTestId("filter-region"), { target: { value: "경기" } });
   await waitFor(() => expect(screen.queryByText("뉴런웍스")).toBeNull());
   expect(screen.getByText("파스텔로")).toBeTruthy();
+});
+
+test("selected company persists (with its jobs) when region changes", async () => {
+  render(
+    <MemoryRouter>
+      <Explorer />
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(screen.getByText("파스텔로")).toBeTruthy());
+  // 파스텔로(경기)를 선택 → 공고 보임
+  fireEvent.click(screen.getByText("파스텔로"));
+  await waitFor(() => expect(screen.getByText("ML 개발자")).toBeTruthy());
+  // 지역을 서울로 변경해도 선택 기업은 1계층 목록에 유지되고 공고도 그대로(지역 스코프 아님)
+  fireEvent.change(screen.getByTestId("filter-region"), { target: { value: "서울" } });
+  const companyCol = document.querySelector(".col-companies") as HTMLElement;
+  await waitFor(() => expect(within(companyCol).getByText("파스텔로")).toBeTruthy());
+  expect(screen.getByText("ML 개발자")).toBeTruthy();
 });
 
 test("region options are ordered by job count (most first)", async () => {

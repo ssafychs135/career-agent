@@ -106,15 +106,22 @@ export default function Explorer() {
     return [...s].sort((a, b) => a.localeCompare(b, "ko"));
   }, [companies, region]);
 
+  // 지역/세부지역은 "기업 탐색"용 필터. 이미 선택한 기업은 필터를 우회해 항상 보이고(해제 가능)
+  // 상단에 고정된다. 검색어(텍스트 질의)는 선택 여부와 무관하게 존중.
   const visibleCompanies = useMemo(() => {
     const q = companyQuery.trim().toLowerCase();
-    return companies.filter(
+    const matchesRegion = (c: Company) =>
+      (!region || c.regions.includes(region)) &&
+      (!district || c.pairs.includes(cityKey(region, district)));
+    const list = companies.filter(
       (c) =>
         (!q || c.name.toLowerCase().includes(q)) &&
-        (!region || c.regions.includes(region)) &&
-        (!district || c.pairs.includes(cityKey(region, district))),
+        (selected.has(c.name) || matchesRegion(c)),
     );
-  }, [companies, companyQuery, region, district]);
+    // 선택 기업을 상단 고정(안정 정렬 → 가나다 순서 유지).
+    list.sort((a, b) => Number(selected.has(b.name)) - Number(selected.has(a.name)));
+    return list;
+  }, [companies, companyQuery, region, district, selected]);
 
   // 딥링크(/jobs/:source/:jobId)로 진입 시 해당 공고의 기업을 선택 집합에 추가.
   useEffect(() => {
@@ -134,23 +141,17 @@ export default function Explorer() {
     });
 
   // 선택된 모든 기업의 공고를 합쳐 기업명→제목 순으로 정렬.
+  // 지역/세부지역은 탐색 필터일 뿐 공고 범위를 좁히지 않는다(선택 기업의 전체 공고 표시).
   const companyJobs = useMemo(() => {
     if (selected.size === 0) return [];
     return jobs
-      .filter(
-        (j) =>
-          selected.has(j.company?.trim() ?? "") &&
-          (!region ||
-            locTokens(j.locations).some(
-              (t) => t.city === region && (!district || t.dist === district),
-            )),
-      )
+      .filter((j) => selected.has(j.company?.trim() ?? ""))
       .sort(
         (a, b) =>
           (a.company ?? "").localeCompare(b.company ?? "", "ko") ||
           (a.title ?? "").localeCompare(b.title ?? "", "ko"),
       );
-  }, [jobs, selected, region, district]);
+  }, [jobs, selected]);
 
   // 기업별 그룹(companyJobs는 이미 기업명→제목 순). 2계층에 기업 구분선/헤더로 쓴다.
   const jobGroups = useMemo(() => {
@@ -282,7 +283,7 @@ export default function Explorer() {
               </h2>
               <div className="caption" style={{ marginTop: 4 }}>
                 {selCount > 1 ? selNames.slice(0, 3).join(", ") + (selCount > 3 ? " 외" : "") + " · " : ""}
-                {region ? region + " · " : ""}공고 {companyJobs.length}건
+                공고 {companyJobs.length}건
               </div>
             </>
           ) : (
