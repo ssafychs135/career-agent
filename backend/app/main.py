@@ -1,14 +1,16 @@
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI, HTTPException
 
-from app import db
+from app import collect_scheduler, db
 from app.claude_client import run_claude
 from app.routers import collect as collect_router
 from app.routers import db as db_router
 from app.routers import jobs as jobs_router
 from app.routers import settings as settings_router
 from app.routers import research
+from app.settings_repo import get_settings
 
 
 @asynccontextmanager
@@ -23,11 +25,21 @@ async def lifespan(app: FastAPI):
 
         def stop_scheduler(app):  # noqa: ARG001
             return None
+    app.state.http = httpx.AsyncClient()
+    # stale recovery: 이전 프로세스가 처리 중이던 행을 pending으로 되돌림
+    async with app.state.db.acquire() as conn:
+        await conn.execute("UPDATE jobs SET status='pending' WHERE status='processing'")
+        settings = await get_settings(conn)
+    collect_scheduler.start_collect_scheduler(app)
+    collect_scheduler.reschedule(app, settings)  # DB 값으로 트리거 정렬
+    app.state.reschedule_pipelines = lambda s: collect_scheduler.reschedule(app, s)
     try:
         start_scheduler(app)               # ④ 제공, 멱등·RESEARCH_AUTO_ENABLED false면 no-op
         yield
     finally:
         stop_scheduler(app)                # ④ 제공, 멱등·스케줄러 없으면 no-op
+        collect_scheduler.stop_collect_scheduler(app)
+        await app.state.http.aclose()
         await db.close(app.state.db)
 
 
