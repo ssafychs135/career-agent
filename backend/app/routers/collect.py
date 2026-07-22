@@ -13,10 +13,21 @@ router = APIRouter(prefix="/api/collect", tags=["collect"])
 @router.post("/run", status_code=202)
 async def run_collect(request: Request, conn: Any = Depends(get_conn)):
     settings = await get_settings(conn)
-    return await collect(conn, settings, http=request.app.state.http)
+    activity = request.app.state.activity
+    # 수동 실행도 진행상황을 activity에 반영 → /status 모니터가 실시간 표시(스케줄러 경로와 동일).
+    try:
+        return await collect(conn, settings, http=request.app.state.http,
+                             on_stage=lambda st, d, p: activity.set_stage("collector", st, d, str(p)))
+    finally:
+        activity.clear("collector")
 
 
 @router.post("/worker/run", status_code=202)
 async def run_worker(request: Request, conn: Any = Depends(get_conn)):
     settings = await get_settings(conn)
-    return await worker_tick(conn, settings, http=request.app.state.http)
+    activity = request.app.state.activity
+    try:
+        return await worker_tick(conn, settings, http=request.app.state.http,
+                                 on_stage=lambda st, d, p: activity.set_stage("worker", st, d, str(p)))
+    finally:
+        activity.clear("worker")
