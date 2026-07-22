@@ -117,8 +117,17 @@ export default function Explorer() {
   const selCount = selected.size;
   const selNames = [...selected].sort((a, b) => a.localeCompare(b, "ko"));
 
+  // 열린 공고(URL)의 기업이 선택돼 있어야 상세를 보인다 → 선택 해제 시 상세도 닫힘(일관성).
+  // 로딩 중(딥링크)엔 낙관적으로 표시(JobDetailView가 자체 조회).
+  const openJobCompany = useMemo(() => {
+    if (!source || !jobId) return null;
+    return jobs.find((x) => x.source === source && x.job_id === jobId)?.company?.trim() ?? null;
+  }, [jobs, source, jobId]);
+  const showDetail =
+    !!source && !!jobId && (!loaded || (!!openJobCompany && selected.has(openJobCompany)));
+
   // 좁은 화면 단일-패널 드릴다운.
-  const mobilePane = source && jobId ? "detail" : selCount > 0 ? "jobs" : "companies";
+  const mobilePane = showDetail ? "detail" : selCount > 0 ? "jobs" : "companies";
 
   return (
     <div className="explorer" data-mobile={mobilePane}>
@@ -246,14 +255,14 @@ export default function Explorer() {
         </div>
       </div>
 
-      {/* 3) 공고 내용 · 분석 */}
+      {/* 3) 공고 내용 · 분석 — 선택된 기업의 공고일 때만 표시 */}
       <div className="detail-pane">
-        {source && jobId ? (
+        {showDetail ? (
           <>
             <button className="mobile-back" onClick={() => navigate("/jobs")} style={{ marginBottom: 16 }}>
               ← 공고
             </button>
-            <JobDetailView source={source} jobId={jobId} />
+            <JobDetailView source={source!} jobId={jobId!} />
           </>
         ) : (
           <div className="caption" style={{ margin: "var(--sp-6)" }}>
