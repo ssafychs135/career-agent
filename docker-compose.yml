@@ -29,6 +29,9 @@ services:
     working_dir: /app
     environment:
       - DATABASE_URL=${DATABASE_URL}
+      # 0003_app_settings 시드가 env에서 읽음(SEARCH_KEYWORDS 비면 마이그레이션 fail-closed)
+      - SEARCH_KEYWORDS=${SEARCH_KEYWORDS}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
     depends_on:
       postgres:
         condition: service_healthy
@@ -41,6 +44,10 @@ services:
     user: "${HOST_UID:-1001}:${HOST_UID:-1001}"   # A1 ubuntu uid (Task 6에서 검증)
     environment:
       - DATABASE_URL=${DATABASE_URL}
+      # 수집 워커(요약 LLM·프록시) — 컷오버(enabled=true) 전엔 미사용, /status 헬스체크엔 사용
+      - LLM_BASE_URL=${LLM_BASE_URL}
+      - JOB_PROXY_URL=${JOB_PROXY_URL}
+      - JOB_PROXY_SECRET=${JOB_PROXY_SECRET}
     volumes:
       - /home/ubuntu/.claude:/home/appuser/.claude:rw
       - /home/ubuntu/.claude.json:/home/appuser/.claude.json:rw
