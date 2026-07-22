@@ -113,6 +113,19 @@ test("region options are ordered by job count (most first)", async () => {
   expect(cities).toEqual(["서울", "경기"]);
 });
 
+test("career slider hides companies whose jobs fall outside the selected range", async () => {
+  render(
+    <MemoryRouter>
+      <Explorer />
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(screen.getByText("뉴런웍스")).toBeTruthy());
+  // 모든 공고가 0~3년 → 최소 연차를 5년으로 올리면 범위 밖이라 기업이 사라짐
+  fireEvent.change(screen.getByLabelText("최소 연차"), { target: { value: "5" } });
+  await waitFor(() => expect(screen.queryByText("뉴런웍스")).toBeNull());
+  expect(screen.queryByText("파스텔로")).toBeNull();
+});
+
 test("selecting a region reveals a district (세부 지역) filter that narrows further", async () => {
   render(
     <MemoryRouter>

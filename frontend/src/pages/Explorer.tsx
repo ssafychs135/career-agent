@@ -2,8 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getJobs, type JobSummary } from "../api";
 import JobDetailView from "./JobDetailView";
+import RangeSlider from "../components/RangeSlider";
+import { yearLabel } from "../career";
 
 const PAGE = 100; // /api/jobs limit cap
+const CAREER_MAX = 10; // 연차 슬라이더 상한(=이상, 무한대로 취급)
 
 /** 지역 토큰. "서울 강남구"→{city:"서울",dist:"강남구"}, 콤마로 복수 지역. */
 type LocTok = { city: string; dist: string };
@@ -19,7 +22,7 @@ function locTokens(loc: string | null): LocTok[] {
 }
 const cityKey = (city: string, dist: string) => `${city}␟${dist}`;
 
-type Company = { name: string; count: number; regions: string[]; pairs: string[]; hasResearch: boolean };
+type Company = { name: string; count: number; regions: string[]; pairs: string[]; hasResearch: boolean; careers: [number, number][] };
 
 export default function Explorer() {
   const { source, jobId } = useParams();
@@ -31,6 +34,8 @@ export default function Explorer() {
   const [companyQuery, setCompanyQuery] = useState("");
   const [region, setRegion] = useState("");
   const [district, setDistrict] = useState(""); // 세부 지역(구) — region 선택 시에만 의미
+  const [careerLo, setCareerLo] = useState(0);          // 연차 범위 필터(0=신입)
+  const [careerHi, setCareerHi] = useState(CAREER_MAX); // 상한=CAREER_MAX → '이상'(무제한)
   // 다중 선택: 여러 기업을 고르면 그 기업들의 공고가 2계층에 합쳐진다.
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -65,11 +70,13 @@ export default function Explorer() {
       if (!name) continue;
       let c = map.get(name);
       if (!c) {
-        c = { name, count: 0, regions: [], pairs: [], hasResearch: false };
+        c = { name, count: 0, regions: [], pairs: [], hasResearch: false, careers: [] };
         map.set(name, c);
       }
       c.count++;
       c.hasResearch = c.hasResearch || !!j.has_company_research;
+      // 각 공고의 모집 연차 범위(min 없으면 0, max 없으면 무제한).
+      c.careers.push([j.min_career ?? 0, j.max_career ?? Infinity]);
       for (const t of locTokens(j.locations)) {
         if (!c.regions.includes(t.city)) c.regions.push(t.city);
         if (t.dist) {
@@ -94,17 +101,20 @@ export default function Explorer() {
       .map(([city, count]) => ({ city, count }));
   }, [jobs]);
 
-  // 선택한 시/도 안의 구(세부 지역) 목록.
+  // 선택한 시/도 안의 구(세부 지역) 목록 + 각 구의 공고 수(대분류처럼). 공고 많은 순.
   const districtOpts = useMemo(() => {
     if (!region) return [];
-    const s = new Set<string>();
-    for (const c of companies)
-      for (const p of c.pairs) {
-        const [city, dist] = p.split("␟");
-        if (city === region && dist) s.add(dist);
-      }
-    return [...s].sort((a, b) => a.localeCompare(b, "ko"));
-  }, [companies, region]);
+    const counts = new Map<string, number>();
+    for (const j of jobs) {
+      const dists = new Set(
+        locTokens(j.locations).filter((t) => t.city === region && t.dist).map((t) => t.dist),
+      );
+      for (const d of dists) counts.set(d, (counts.get(d) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ko"))
+      .map(([dist, count]) => ({ dist, count }));
+  }, [jobs, region]);
 
   // 지역/세부지역은 "기업 탐색"용 필터. 이미 선택한 기업은 필터를 우회해 항상 보이고(해제 가능)
   // 상단에 고정된다. 검색어(텍스트 질의)는 선택 여부와 무관하게 존중.
@@ -113,15 +123,18 @@ export default function Explorer() {
     const matchesRegion = (c: Company) =>
       (!region || c.regions.includes(region)) &&
       (!district || c.pairs.includes(cityKey(region, district)));
-    const list = companies.filter(
+    // 연차 필터 — 기본 [0, CAREER_MAX]면 비활성(전체). 활성 시 범위와 겹치는 공고가 하나라도 있는 기업만.
+    const careerActive = careerLo > 0 || careerHi < CAREER_MAX;
+    const hiBound = careerHi >= CAREER_MAX ? Infinity : careerHi;
+    const matchesCareer = (c: Company) =>
+      !careerActive || c.careers.some(([mn, mx]) => mn <= hiBound && mx >= careerLo);
+    // 선택 여부와 무관하게 기업명(가나다) 순 유지 — 선택해도 상단으로 재정렬하지 않음.
+    return companies.filter(
       (c) =>
         (!q || c.name.toLowerCase().includes(q)) &&
-        (selected.has(c.name) || matchesRegion(c)),
+        (selected.has(c.name) || (matchesRegion(c) && matchesCareer(c))),
     );
-    // 선택 기업을 상단 고정(안정 정렬 → 가나다 순서 유지).
-    list.sort((a, b) => Number(selected.has(b.name)) - Number(selected.has(a.name)));
-    return list;
-  }, [companies, companyQuery, region, district, selected]);
+  }, [companies, companyQuery, region, district, selected, careerLo, careerHi]);
 
   // 딥링크(/jobs/:source/:jobId)로 진입 시 해당 공고의 기업을 선택 집합에 추가.
   useEffect(() => {
@@ -226,11 +239,22 @@ export default function Explorer() {
             >
               <option value="">{region ? `${region} 전체` : "세부 지역"}</option>
               {districtOpts.map((d) => (
-                <option key={d} value={d}>
-                  {d}
+                <option key={d.dist} value={d.dist}>
+                  {d.dist} ({d.count})
                 </option>
               ))}
             </select>
+            {/* 연차 범위 — 한 슬라이더로 최소·최대 동시 설정(최소=신입) */}
+            <div className="range-field">
+              <div className="range-label">
+                <span>연차</span>
+                <span className="caption">{yearLabel(careerLo, CAREER_MAX)} ~ {yearLabel(careerHi, CAREER_MAX)}</span>
+              </div>
+              <RangeSlider
+                min={0} max={CAREER_MAX} lo={careerLo} hi={careerHi}
+                onChange={(lo, hi) => { setCareerLo(lo); setCareerHi(hi); }}
+              />
+            </div>
           </div>
         </div>
         <div className="col-list">

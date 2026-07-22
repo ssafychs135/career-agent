@@ -35,6 +35,10 @@ test("renders detail with research body", async () => {
   expect(screen.getByTestId("job-company").textContent).toBe("Acme");
   expect(screen.getByText(/안정적/)).toBeTruthy();
   expect(getJob).toHaveBeenCalledWith("saramin", "1");
+  // 모집 연차 표시(min 0, max 3 → 신입~3년)
+  expect(screen.getByText(/모집 연차 · 신입~3년/)).toBeTruthy();
+  // 최상단 상태 뱃지는 제거됨(open 표시 없음)
+  expect(screen.queryByText("open")).toBeNull();
 });
 
 test("shows error when job missing", async () => {

@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { getJob, type JobDetailResponse } from "../api";
 import { ResearchPanel } from "../ResearchPanel";
 import { SPRING_UI } from "../design/springs";
+import { careerLabel } from "../career";
 
 // api.ts research union(overview/stability/tech_detail/role_detail, sources: unknown)을
 // ResearchPanel이 기대하는 Research 형태로 변환.
@@ -74,16 +75,14 @@ export default function JobDetailView({ source, jobId }: { source: string; jobId
       animate={{ opacity: 1, y: 0 }}
       transition={SPRING_UI}
     >
-      {job.status && (
-        <div className="doc-meta">
-          <span className="pill">{job.status}</span>
-        </div>
-      )}
       <h1 data-testid="job-title">{job.title}</h1>
       <div className="company" data-testid="job-company">
         {job.company}
       </div>
       {job.locations && <div className="sub">{job.locations}</div>}
+      {(job.min_career != null || job.max_career != null) && (
+        <div className="sub">모집 연차 · {careerLabel(job.min_career, job.max_career)}</div>
+      )}
       {/* 출처는 원문보기 링크에만 표시(별도 수집 뱃지 제거) */}
       {job.url && (
         <a className="origin" href={job.url} target="_blank" rel="noreferrer">

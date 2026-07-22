@@ -120,7 +120,7 @@ export default function Ops() {
               </label>
               <span className="sp" />
               <button onClick={() => doRun(runCollect, (r) => `수집 완료 · 스크레이핑 ${r.scraped} · 적재 ${r.inserted}`)} disabled={dirty || busy}>지금 수집</button>
-              <button onClick={() => doRun(runWorker, (r) => r.skipped_tick ? "워커 건너뜀 · LLM 대기 중" : `워커 완료 · 처리 ${r.done}${r.failed ? ` · 실패 ${r.failed}` : ""}`)} disabled={dirty || busy}>워커 1회</button>
+              <button onClick={() => doRun(runWorker, (r) => r.skipped_tick ? "요약 처리 건너뜀 · LLM 대기 중" : `요약 처리 완료 · ${r.done}건${r.failed ? ` · 실패 ${r.failed}` : ""}`)} disabled={dirty || busy}>요약 처리 1회</button>
               <span className="caption">{dirty ? "먼저 저장하세요" : runMsg}</span>
             </div>
           )}
