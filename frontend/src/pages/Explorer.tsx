@@ -5,16 +5,21 @@ import JobDetailView from "./JobDetailView";
 
 const PAGE = 100; // /api/jobs limit cap
 
-/** 시/도 단위 지역 토큰. "서울 강남구"→"서울", "서울, 부산"→["서울","부산"]. */
-function regionsOf(loc: string | null): string[] {
+/** 지역 토큰. "서울 강남구"→{city:"서울",dist:"강남구"}, 콤마로 복수 지역. */
+type LocTok = { city: string; dist: string };
+function locTokens(loc: string | null): LocTok[] {
   if (!loc) return [];
   return loc
     .split(",")
-    .map((p) => p.trim().split(/\s+/)[0])
-    .filter(Boolean);
+    .map((p) => {
+      const t = p.trim().split(/\s+/);
+      return { city: t[0] ?? "", dist: t[1] ?? "" };
+    })
+    .filter((x) => x.city);
 }
+const cityKey = (city: string, dist: string) => `${city}␟${dist}`;
 
-type Company = { name: string; count: number; regions: string[]; hasResearch: boolean };
+type Company = { name: string; count: number; regions: string[]; pairs: string[]; hasResearch: boolean };
 
 export default function Explorer() {
   const { source, jobId } = useParams();
@@ -25,6 +30,7 @@ export default function Explorer() {
   const [error, setError] = useState("");
   const [companyQuery, setCompanyQuery] = useState("");
   const [region, setRegion] = useState("");
+  const [district, setDistrict] = useState(""); // 세부 지역(구) — region 선택 시에만 의미
   // 다중 선택: 여러 기업을 고르면 그 기업들의 공고가 2계층에 합쳐진다.
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -59,12 +65,18 @@ export default function Explorer() {
       if (!name) continue;
       let c = map.get(name);
       if (!c) {
-        c = { name, count: 0, regions: [], hasResearch: false };
+        c = { name, count: 0, regions: [], pairs: [], hasResearch: false };
         map.set(name, c);
       }
       c.count++;
       c.hasResearch = c.hasResearch || !!j.has_company_research;
-      for (const r of regionsOf(j.locations)) if (!c.regions.includes(r)) c.regions.push(r);
+      for (const t of locTokens(j.locations)) {
+        if (!c.regions.includes(t.city)) c.regions.push(t.city);
+        if (t.dist) {
+          const key = cityKey(t.city, t.dist);
+          if (!c.pairs.includes(key)) c.pairs.push(key);
+        }
+      }
     }
     // 기업명(가나다) 순 정렬.
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ko"));
@@ -76,12 +88,27 @@ export default function Explorer() {
     return [...s].sort((a, b) => a.localeCompare(b, "ko"));
   }, [companies]);
 
+  // 선택한 시/도 안의 구(세부 지역) 목록.
+  const districtOpts = useMemo(() => {
+    if (!region) return [];
+    const s = new Set<string>();
+    for (const c of companies)
+      for (const p of c.pairs) {
+        const [city, dist] = p.split("␟");
+        if (city === region && dist) s.add(dist);
+      }
+    return [...s].sort((a, b) => a.localeCompare(b, "ko"));
+  }, [companies, region]);
+
   const visibleCompanies = useMemo(() => {
     const q = companyQuery.trim().toLowerCase();
     return companies.filter(
-      (c) => (!q || c.name.toLowerCase().includes(q)) && (!region || c.regions.includes(region)),
+      (c) =>
+        (!q || c.name.toLowerCase().includes(q)) &&
+        (!region || c.regions.includes(region)) &&
+        (!district || c.pairs.includes(cityKey(region, district))),
     );
-  }, [companies, companyQuery, region]);
+  }, [companies, companyQuery, region, district]);
 
   // 딥링크(/jobs/:source/:jobId)로 진입 시 해당 공고의 기업을 선택 집합에 추가.
   useEffect(() => {
@@ -105,14 +132,19 @@ export default function Explorer() {
     if (selected.size === 0) return [];
     return jobs
       .filter(
-        (j) => selected.has(j.company?.trim() ?? "") && (!region || regionsOf(j.locations).includes(region)),
+        (j) =>
+          selected.has(j.company?.trim() ?? "") &&
+          (!region ||
+            locTokens(j.locations).some(
+              (t) => t.city === region && (!district || t.dist === district),
+            )),
       )
       .sort(
         (a, b) =>
           (a.company ?? "").localeCompare(b.company ?? "", "ko") ||
           (a.title ?? "").localeCompare(b.title ?? "", "ko"),
       );
-  }, [jobs, selected, region]);
+  }, [jobs, selected, region, district]);
 
   // 기업별 그룹(companyJobs는 이미 기업명→제목 순). 2계층에 기업 구분선/헤더로 쓴다.
   const jobGroups = useMemo(() => {
@@ -165,7 +197,10 @@ export default function Explorer() {
               data-testid="filter-region"
               aria-label="지역"
               value={region}
-              onChange={(e) => setRegion(e.target.value)}
+              onChange={(e) => {
+                setRegion(e.target.value);
+                setDistrict(""); // 시/도 바뀌면 세부 지역 초기화
+              }}
             >
               <option value="">지역 전체</option>
               {regionOpts.map((r) => (
@@ -174,6 +209,21 @@ export default function Explorer() {
                 </option>
               ))}
             </select>
+            {region && districtOpts.length > 0 && (
+              <select
+                data-testid="filter-district"
+                aria-label="세부 지역"
+                value={district}
+                onChange={(e) => setDistrict(e.target.value)}
+              >
+                <option value="">{region} 전체</option>
+                {districtOpts.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
         <div className="col-list">

@@ -23,13 +23,13 @@
   /* Palette (light). 시스템 액센트=블루, 브랜드=레드, 긍정=그린 */
   --text: #1d1d1f; --text-2: #57575c; --text-3: #8a8a8f;
   --accent: #0071e3; --accent-press: #0060c0; --on-accent: #fff;
-  --brand: #ff3b30; --brand-2: #d70015;
+  --brand: #0071e3; --brand-2: #5e5ce6;   /* 대표색 블루(로고·앰비언트), 그라디언트 끝은 인디고 */
   --good: #1a7f37; --bad: #c9372c;
 
-  /* Ambient ground — 뉴트럴 화이트/블랙에 미세한 레드 숨결(브랜드) */
+  /* Ambient ground — 뉴트럴에 미세한 블루 숨결(대표색) */
   --ground:
-    radial-gradient(1100px 760px at 12% -12%, rgba(255, 59, 48, 0.07) 0%, transparent 55%),
-    radial-gradient(900px 720px at 112% 120%, rgba(255, 59, 48, 0.05) 0%, transparent 55%),
+    radial-gradient(1100px 760px at 12% -12%, rgba(0, 113, 227, 0.08) 0%, transparent 55%),
+    radial-gradient(900px 720px at 112% 120%, rgba(94, 92, 230, 0.05) 0%, transparent 55%),
     linear-gradient(180deg, #f4f4f6, #e9e9ec);
 
   /* Glass material — 투명 유리 + 상단 스페큘러 림(§12) */
@@ -40,6 +40,7 @@
   --hairline: rgba(0, 0, 0, 0.1);
   --hover: rgba(0, 0, 0, 0.05);
   --chip: rgba(0, 0, 0, 0.07);
+  --band: rgba(247, 247, 249, 0.95);   /* sticky 섹션 밴드 — 거의 불투명(스크롤 내용 가림) */
   --float: 0 20px 48px -24px rgba(0, 0, 0, 0.22);
   --float-sm: 0 8px 20px -14px rgba(0, 0, 0, 0.18);
   --blur: blur(26px) saturate(150%);
@@ -51,12 +52,12 @@
   :root {
     --text: #f5f5f7; --text-2: #b4b4ba; --text-3: #88888f;
     --accent: #0a84ff; --accent-press: #409cff;
-    --brand: #ff453a; --brand-2: #ff6961;
+    --brand: #0a84ff; --brand-2: #7d7aff;
     --good: #34d97f; --bad: #ff453a;
-    /* 딥 그래파이트(순검정 아님) + 미세 레드 앰비언트 */
+    /* 딥 그래파이트(순검정 아님) + 미세 블루 앰비언트 */
     --ground:
-      radial-gradient(1100px 760px at 12% -12%, rgba(255, 69, 58, 0.12) 0%, transparent 55%),
-      radial-gradient(900px 720px at 112% 120%, rgba(255, 69, 58, 0.07) 0%, transparent 55%),
+      radial-gradient(1100px 760px at 12% -12%, rgba(10, 132, 255, 0.14) 0%, transparent 55%),
+      radial-gradient(900px 720px at 112% 120%, rgba(125, 122, 255, 0.08) 0%, transparent 55%),
       linear-gradient(180deg, #0e0e10, #151517);
     --glass-fill: rgba(58, 60, 66, 0.34);
     --glass-fill-2: rgba(48, 50, 56, 0.24);
@@ -65,6 +66,7 @@
     --hairline: rgba(255, 255, 255, 0.08);
     --hover: rgba(255, 255, 255, 0.06);
     --chip: rgba(255, 255, 255, 0.09);
+    --band: rgba(40, 42, 48, 0.95);
     --float: 0 24px 56px -26px rgba(0, 0, 0, 0.66);
     --float-sm: 0 10px 24px -16px rgba(0, 0, 0, 0.54);
   }
@@ -231,9 +233,10 @@ button:disabled { opacity: 0.45; cursor: default; }
 .job-group-head {
   position: sticky; top: -8px; z-index: 3;
   margin: -8px -10px 4px; padding: 9px 12px 8px;
-  background: var(--glass-fill);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
-  backdrop-filter: blur(20px) saturate(150%);
+  /* 거의 불투명 → 스크롤되는 공고 제목이 밴드를 투과해 겹치지 않게 */
+  background: var(--band);
+  -webkit-backdrop-filter: blur(8px) saturate(150%);
+  backdrop-filter: blur(8px) saturate(150%);
   box-shadow: 0 1px 0 var(--hairline);
   font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
   color: var(--text-3); display: flex; align-items: center; gap: 7px;
@@ -303,9 +306,10 @@ button:disabled { opacity: 0.45; cursor: default; }
    §14 Accessibility — reduced motion / transparency / contrast
    ============================================================================ */
 @media (prefers-reduced-transparency: reduce) {
-  .card, .col, .detail-pane, .rail, .job-group-head {
+  .card, .col, .detail-pane, .rail {
     -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--glass-fill);
   }
+  .job-group-head { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--band); }
 }
 @media (prefers-contrast: more) {
   :root { --hairline: color-mix(in srgb, var(--text) 42%, transparent); --text-3: #4b4b50; }
