@@ -337,3 +337,9 @@ button:disabled { opacity: 0.45; cursor: default; }
 .segmented { display: inline-flex; gap: 2px; border-radius: 8px; overflow: hidden; }
 .segmented .seg { padding: 6px 14px; border: none; cursor: pointer; background: var(--surface-2, #2a2a2a); color: inherit; }
 .segmented .seg.active { background: var(--accent, #3b82f6); color: #fff; }
+
+/* ============================================================================
+   Status 페이지 — 폴링 상태 모니터
+   ============================================================================ */
+.status-row { display: flex; gap: 12px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--border, #333); }
+.status-row .flabel { min-width: 72px; }
