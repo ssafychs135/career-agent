@@ -13,7 +13,7 @@ async def test_research_company_publishes_stage(monkeypatch):
     seen = {}
     monkeypatch.setattr(R, "store", FakeStore())
 
-    async def fake_runner(prompt, *, allowed_tools="", timeout=0, on_step=None):
+    async def fake_runner(prompt, *, model="", allowed_tools="", timeout=0, on_step=None):
         on_step('웹 검색: "x"')                       # claude 서브스텝 시뮬레이트
         seen["research"] = act.snapshot()["research"]  # 실행 중 스냅샷
         return '{"overview":"o","stability":"s","sources":[]}'
