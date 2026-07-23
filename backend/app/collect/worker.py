@@ -66,9 +66,11 @@ async def worker_tick(conn, settings, *, http, summarizer=summarize,
             failed += 1
             continue
         prompt = f"제목: {title}\n회사: {job.get('company') or ''}\n\n{body}"
-        # 전에 실패한 적 있는 잡은 한 단계 위 티어로 재시도한다.
+        # 전에 실패한 적 있는 잡은 한 단계 위 티어로 재시도한다. 단 승급은 claude
+        # 백엔드에서만 의미가 있다 — local 분기는 model 인자를 무시하므로, local
+        # 모드에서 escalated를 세면 실행 로그에 없던 "·승급" 라벨이 붙는다.
         # attempts는 상세조회 실패로도 오르지만, 그 부정확은 드물고 무해하다.
-        is_retry = job["attempts"] > 0
+        is_retry = job["attempts"] > 0 and settings.summary_backend == "claude"
         model = resolve("summary", settings.summary_model, escalated=is_retry)
         if is_retry:
             escalated += 1

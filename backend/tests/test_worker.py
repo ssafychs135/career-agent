@@ -149,3 +149,16 @@ async def test_worker_still_health_gates_local_backend():
     assert r["skipped_tick"] is True
     assert r["escalated"] == 0
     assert conn.updates == []
+
+
+async def test_worker_local_backend_never_escalates_on_retry():
+    """회귀: local 백엔드는 티어 개념이 없으므로, 재시도 잡이어도 승급 카운트가 오르면 안 된다."""
+    conn = Conn(_claimed(1))
+
+    async def summ(prompt, settings, *, http, model="", on_step=None):
+        return "요약\n기술스택: Go"
+
+    r = await worker_tick(conn, _settings(summary_backend="local"),
+                          http=Http(_DETAIL), summarizer=summ, health=_up)
+    assert r["done"] == 1
+    assert r["escalated"] == 0
