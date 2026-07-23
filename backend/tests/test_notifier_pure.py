@@ -17,6 +17,13 @@ def test_build_embed_strips_stack_line_from_description():
     assert e["description"] == "좋은 회사"
 
 
+def test_build_embed_strips_only_first_stack_line_like_original_js():
+    # 원본 JS는 /g 없는 replace라 첫 매치만 제거한다 — 포팅 충실도(디스코드 출력 동일성).
+    e = build_embed(_row(summary="기술스택: A\n본문\n기술스택: B"))
+    assert "기술스택: B" in e["description"]
+    assert "기술스택: A" not in e["description"]
+
+
 def test_build_embed_fields_and_shape():
     e = build_embed(_row())
     assert e["title"] == "미스릴 — 백엔드"

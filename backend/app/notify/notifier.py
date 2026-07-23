@@ -12,7 +12,7 @@ _STACK_LINE = re.compile(r"\n?기술스택\s*[:：].*$", re.M)
 def build_embed(row: dict) -> dict:
     company = (row.get("company") or "").strip()
     title = (row.get("title") or "").strip()
-    desc = _STACK_LINE.sub("", row.get("summary") or "").strip()
+    desc = _STACK_LINE.sub("", row.get("summary") or "", count=1).strip()
     if len(desc) > 400:
         desc = desc[:400] + "…"
     stacks = row.get("tech_stacks") or []
