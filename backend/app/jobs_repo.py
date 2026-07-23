@@ -21,6 +21,8 @@ def build_list_query(
     location: str | None = None,
     tech: str | None = None,
     keyword: str | None = None,
+    allowed_regions: list[str] | None = None,
+    hidden_companies: list[str] | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> tuple[str, list[Any]]:
@@ -44,6 +46,19 @@ def build_list_query(
         params.append(f"%{keyword}%")
         n = len(params)
         clauses.append(f"(title ILIKE ${n} OR summary ILIKE ${n} OR company ILIKE ${n})")
+
+    # ── 전역 필터(설정) — 빈 값이면 절을 붙이지 않는다 ──
+    if allowed_regions:
+        # locations는 "서울 강남구, 경기 성남시" 형태의 단일 텍스트 → 지역별 ILIKE를 OR로.
+        ors: list[str] = []
+        for region in allowed_regions:
+            params.append(f"%{region}%")
+            ors.append(f"locations ILIKE ${len(params)}")
+        clauses.append("(" + " OR ".join(ors) + ")")
+    if hidden_companies:
+        # company가 NULL이면 NOT(... = ANY(...))가 NULL이 되어 행이 통째로 빠진다 → IS NULL 방어.
+        params.append(hidden_companies)
+        clauses.append(f"(company IS NULL OR NOT (company = ANY(${len(params)}::text[])))")
 
     where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
     params.append(limit)

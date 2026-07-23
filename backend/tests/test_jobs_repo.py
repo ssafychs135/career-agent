@@ -54,6 +54,38 @@ def test_build_query_ignores_none_and_empty():
     assert params == [20, 0]
 
 
+def test_build_query_allowed_regions_ors_ilike():
+    sql, params = build_list_query(allowed_regions=["서울", "경기"], limit=20, offset=0)
+    assert "(locations ILIKE $1 OR locations ILIKE $2)" in sql
+    assert params[0] == "%서울%" and params[1] == "%경기%"
+
+
+def test_build_query_hidden_companies_excludes_with_null_guard():
+    sql, params = build_list_query(hidden_companies=["미스릴"], limit=20, offset=0)
+    # company가 NULL이면 NOT(...=ANY)가 NULL이 되어 행이 통째로 빠진다 → IS NULL 방어 필수
+    assert "(company IS NULL OR NOT (company = ANY($1::text[])))" in sql
+    assert params[0] == ["미스릴"]
+
+
+def test_build_query_empty_global_filters_add_no_clause():
+    sql, params = build_list_query(allowed_regions=[], hidden_companies=[], limit=20, offset=0)
+    assert "locations ILIKE" not in sql
+    assert "company = ANY" not in sql
+    assert params == [20, 0]
+
+
+def test_build_query_global_filters_combine_with_existing():
+    sql, params = build_list_query(
+        status="done", allowed_regions=["서울"], hidden_companies=["미스릴"], limit=5, offset=10,
+    )
+    # $N 넘버링 정합 — status $1, 지역 $2, 기업 $3, limit $4, offset $5
+    assert "status = $1" in sql
+    assert "locations ILIKE $2" in sql
+    assert "company = ANY($3::text[])" in sql
+    assert "LIMIT $4 OFFSET $5" in sql
+    assert params == ["done", "%서울%", ["미스릴"], 5, 10]
+
+
 def _make_detail_row(*, cr_sources, jr_sources):
     return {
         "source": "saramin",
