@@ -8,6 +8,7 @@ from app.research.config import (
     RESEARCH_AUTO_INTERVAL_MIN,
     RESEARCH_AUTO_LIMIT,
 )
+from app.settings_repo import get_settings
 
 log = logging.getLogger("research.scheduler")
 
@@ -16,10 +17,11 @@ async def tick(get_pool, get_activity=lambda: None) -> None:
     """미리서치 대상 회사/공고를 limit만큼 처리(자동모드 잡 본체)."""
     db = get_pool()
     activity = get_activity()
+    settings = await get_settings(db)
     for company in await store.pending_companies(db, RESEARCH_AUTO_LIMIT):
-        await runner.research_company(db, company, activity=activity)
+        await runner.research_company(db, company, settings=settings, activity=activity)
     for source, job_id in await store.pending_jobs(db, RESEARCH_AUTO_LIMIT):
-        await runner.research_job(db, source, job_id, activity=activity)
+        await runner.research_job(db, source, job_id, settings=settings, activity=activity)
 
 
 def start_scheduler(app) -> None:

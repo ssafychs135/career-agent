@@ -86,7 +86,7 @@ def test_build_query_global_filters_combine_with_existing():
     assert params == ["done", "%서울%", ["미스릴"], 5, 10]
 
 
-def _make_detail_row(*, cr_sources, jr_sources):
+def _make_detail_row(*, cr_sources, jr_sources, jr_model=None):
     return {
         "source": "saramin",
         "job_id": "123",
@@ -113,6 +113,7 @@ def _make_detail_row(*, cr_sources, jr_sources):
         "jr_sources": jr_sources,
         "jr_status": "done",
         "jr_researched_at": None,
+        "jr_model": jr_model,
     }
 
 
@@ -141,3 +142,24 @@ def test_split_detail_none_sources_stay_none():
     result = _split_detail(row)
     assert result["companyResearch"]["sources"] is None
     assert result["jobResearch"]["sources"] is None
+
+
+def test_detail_sql_selects_research_model():
+    from app.jobs_repo import _DETAIL_SQL
+    assert "jr.model AS jr_model" in _DETAIL_SQL
+
+
+def test_split_detail_exposes_research_model():
+    from app.jobs_repo import _split_detail
+    row = {
+        "source": "wanted", "job_id": "42", "company": "토스", "title": "백엔드",
+        "url": "https://x", "locations": "서울", "min_career": 0, "max_career": 3,
+        "tech_stacks": None, "summary": "s", "status": "done", "attempts": 0,
+        "collected_at": None, "updated_at": None, "closed_at": None,
+        "cr_overview": None, "cr_stability": None, "cr_sources": None,
+        "cr_status": None, "cr_researched_at": None,
+        "jr_tech_detail": "t", "jr_role_detail": "r", "jr_sources": None,
+        "jr_status": "done", "jr_researched_at": None, "jr_model": "opus",
+    }
+    out = _split_detail(row)
+    assert out["jobResearch"]["model"] == "opus"

@@ -19,12 +19,13 @@ def extract_stacks(content: str) -> list[str]:
     return [s.strip() for s in re.split(r"[,·]", m.group(1)) if s.strip()]
 
 
-async def summarize(prompt, settings, *, http, runner=run_claude, on_step=None) -> str | None:
+async def summarize(prompt, settings, *, http, model="", runner=run_claude, on_step=None) -> str | None:
     if settings.summary_backend == "claude":
         full = f"{SUMMARY_SYSTEM_PROMPT}\n\n{prompt}"
-        text = await runner(full, timeout=SUMMARY_TIMEOUT, on_step=on_step)
+        text = await runner(full, model=model, timeout=SUMMARY_TIMEOUT, on_step=on_step)
         return text or None
-    # local: LM Studio OpenAI 호환 chat completions
+    # local: LM Studio OpenAI 호환 chat completions.
+    # settings.model은 LM Studio 로컬 모델명 — claude 티어(model 인자)와 무관하다.
     body = {
         "model": settings.model,
         "messages": [

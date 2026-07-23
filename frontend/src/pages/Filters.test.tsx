@@ -8,6 +8,7 @@ const SETTINGS = {
   summary_backend: "local", max_attempts: 5, worker_interval_min: 5,
   enabled: false, discord_webhook_url: "",
   allowed_regions: [] as string[], hidden_companies: [] as string[],
+  summary_model: "", research_model: "",
 };
 const FACETS = {
   regions: [{ name: "서울", count: 362 }, { name: "경기", count: 59 }],

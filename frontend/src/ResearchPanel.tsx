@@ -11,6 +11,7 @@ type Research = {
   tech_detail?: string;
   role_detail?: string;
   sources?: string[];
+  model?: string;
 } | null;
 
 type RefetchResult = { companyResearch: Research; jobResearch: Research };
@@ -213,6 +214,18 @@ export function ResearchPanel({
               exit={{ opacity: 0 }}
             >
               리서치 실패
+            </motion.span>
+          )}
+          {!busy && jrStatus === "done" && jr?.model && (
+            <motion.span
+              key="model"
+              data-testid="research-model"
+              className="pill"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              {jr.model}
             </motion.span>
           )}
         </AnimatePresence>

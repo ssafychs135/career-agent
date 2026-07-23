@@ -129,3 +129,72 @@ async def test_job_missing_raises(wired):
             None, "wanted", "999",
             runner=make_runner('{"x":1}'), notify=wired.notify,
         )
+
+
+def make_model_recording_runner(*replies):
+    """호출마다 (model) 을 기록하는 러너. models 리스트를 함께 반환."""
+    replies = list(replies)
+    models = []
+
+    async def fake(prompt, *, model="", **kw):
+        models.append(model)
+        return replies.pop(0)
+
+    return fake, models
+
+
+class _Settings:
+    """research_model만 있는 최소 설정 대역."""
+    def __init__(self, research_model=""):
+        self.research_model = research_model
+
+
+async def test_company_uses_sonnet_by_default(wired):
+    run, models = make_model_recording_runner('{"overview":"o"}')
+    out = await runner.research_company(None, "토스", runner=run, notify=wired.notify)
+    assert out == "done"
+    assert models == ["sonnet"]
+
+
+async def test_company_records_model_actually_used(wired):
+    run, _ = make_model_recording_runner('{"overview":"o"}')
+    await runner.research_company(None, "토스", runner=run, notify=wired.notify)
+    assert wired.saved[-1][2]["model"] == "sonnet"
+
+
+async def test_company_escalates_to_opus_on_parse_failure(wired):
+    run, models = make_model_recording_runner("헛소리", '{"overview":"o"}')
+    out = await runner.research_company(None, "토스", runner=run, notify=wired.notify)
+    assert out == "done"
+    assert models == ["sonnet", "opus"]
+    assert wired.saved[-1][2]["model"] == "opus"   # 실제로 성공한 모델
+
+
+async def test_company_failure_records_first_attempt_model(wired):
+    run, _ = make_model_recording_runner("bad", "still bad")
+    out = await runner.research_company(None, "토스", runner=run, notify=wired.notify)
+    assert out == "failed"
+    assert wired.saved[-1][2]["model"] == "sonnet"
+
+
+async def test_company_settings_override_shifts_ladder(wired):
+    run, models = make_model_recording_runner("헛소리", '{"overview":"o"}')
+    await runner.research_company(
+        None, "토스", settings=_Settings("opus"), runner=run, notify=wired.notify,
+    )
+    assert models == ["opus", "opus"]  # 상한에서의 승급 = 같은 모델 재시도
+
+
+async def test_job_threads_settings_into_company_research(wired):
+    wired.state["job_meta"][("wanted", "42")] = {
+        "company": "토스", "title": "백엔드", "tech_stacks": "Java",
+        "summary": "s", "url": "https://x",
+    }
+    run, models = make_model_recording_runner(
+        '{"overview":"o"}', '{"tech_detail":"t","role_detail":"r"}',
+    )
+    out = await runner.research_job(
+        None, "wanted", "42", settings=_Settings("haiku"), runner=run, notify=wired.notify,
+    )
+    assert out == "done"
+    assert models == ["haiku", "haiku"]  # 선행 기업 리서치도 같은 설정을 쓴다

@@ -115,7 +115,7 @@ _DETAIL_SQL = (
     "  cr.researched_at AS cr_researched_at, "
     "  jr.tech_detail AS jr_tech_detail, jr.role_detail AS jr_role_detail, "
     "  jr.sources AS jr_sources, jr.status AS jr_status, "
-    "  jr.researched_at AS jr_researched_at "
+    "  jr.researched_at AS jr_researched_at, jr.model AS jr_model "
     "FROM jobs j "
     "LEFT JOIN company_research cr ON cr.company = j.company "
     "LEFT JOIN job_research jr ON jr.source = j.source AND jr.job_id = j.job_id "
@@ -156,6 +156,7 @@ def _split_detail(row: Any) -> dict[str, Any]:
         "sources": _maybe_json(d["jr_sources"]),
         "status": d["jr_status"],
         "researched_at": d["jr_researched_at"],
+        "model": d["jr_model"],
     }
     return {"job": job, "companyResearch": company_research, "jobResearch": job_research}
 

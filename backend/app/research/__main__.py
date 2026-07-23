@@ -2,6 +2,7 @@ import argparse
 import asyncio
 
 from app.research import runner, store
+from app.settings_repo import get_settings
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -17,17 +18,18 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 async def dispatch(db, args) -> None:
+    settings = await get_settings(db)
     if args.company:
-        print(await runner.research_company(db, args.company, force=args.force))
+        print(await runner.research_company(db, args.company, settings=settings, force=args.force))
     elif args.job:
         source, job_id = args.job.split(":", 1)
-        print(await runner.research_job(db, source, job_id, force=args.force))
+        print(await runner.research_job(db, source, job_id, settings=settings, force=args.force))
     elif args.pending_companies:
         for company in await store.pending_companies(db, args.limit):
-            print(company, await runner.research_company(db, company, force=args.force))
+            print(company, await runner.research_company(db, company, settings=settings, force=args.force))
     elif args.pending_jobs:
         for source, job_id in await store.pending_jobs(db, args.limit):
-            print(source, job_id, await runner.research_job(db, source, job_id, force=args.force))
+            print(source, job_id, await runner.research_job(db, source, job_id, settings=settings, force=args.force))
 
 
 async def _amain(args) -> None:

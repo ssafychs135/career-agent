@@ -46,3 +46,24 @@ async def test_summarize_claude_uses_runner():
     out = await summarize("공고 프롬프트", s, http=Http(), runner=fake_runner)
     assert out == "클로드 요약"
     assert "공고 프롬프트" in calls["prompt"]
+
+
+async def test_summarize_claude_forwards_model():
+    calls = {}
+
+    async def fake_runner(prompt, *, model="", on_step=None, **kw):
+        calls["model"] = model
+        return "클로드 요약"
+
+    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"], summary_backend="claude"))
+    await summarize("공고", s, http=Http(), model="haiku", runner=fake_runner)
+    assert calls["model"] == "haiku"
+
+
+async def test_summarize_local_ignores_model_arg():
+    """local 분기는 티어와 무관 — settings.model(LM Studio 모델명)을 그대로 쓴다."""
+    http = Http(post_resp=Resp(200, {"choices": [{"message": {"content": "3줄"}}]}))
+    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"], summary_backend="local"))
+    out = await summarize("공고", s, http=http, model="opus")
+    assert out == "3줄"
+    assert http.posted["model"] == s.model

@@ -65,6 +65,7 @@ export interface JobResearch {
   sources: unknown;
   status: string;
   researched_at: string | null;
+  model: string | null;
 }
 
 export interface JobDetailResponse {

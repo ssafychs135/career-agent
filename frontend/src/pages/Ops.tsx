@@ -208,8 +208,28 @@ export default function Ops() {
                 onChange={(v) => set("summary_backend", v)} /></div>
             </div>
             <label className="form-row">
-              <span className="rl">모델</span>
-              <input className="control" aria-label="모델" type="text" value={form.model} onChange={(e) => set("model", e.target.value)} />
+              <span className="rl">로컬 모델</span>
+              <input className="control" aria-label="로컬 모델" type="text" value={form.model} onChange={(e) => set("model", e.target.value)} />
+            </label>
+            <label className="form-row">
+              <span className="rl">요약 모델</span>
+              <select className="control" aria-label="요약 모델" value={form.summary_model}
+                onChange={(e) => set("summary_model", e.target.value)}>
+                <option value="">자동 (haiku)</option>
+                <option value="haiku">haiku</option>
+                <option value="sonnet">sonnet</option>
+                <option value="opus">opus</option>
+              </select>
+            </label>
+            <label className="form-row">
+              <span className="rl">리서치 모델</span>
+              <select className="control" aria-label="리서치 모델" value={form.research_model}
+                onChange={(e) => set("research_model", e.target.value)}>
+                <option value="">자동 (sonnet)</option>
+                <option value="haiku">haiku</option>
+                <option value="sonnet">sonnet</option>
+                <option value="opus">opus</option>
+              </select>
             </label>
           </motion.section>
 

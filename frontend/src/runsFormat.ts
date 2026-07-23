@@ -20,7 +20,8 @@ export function runSummary(it: RunLogItem): string {
   if (it.pipeline === "worker") {
     if (it.status === "skipped") return "건너뜀·LLM 대기";
     const failed = Number(r.failed ?? 0);
-    return `요약 ${r.done ?? 0}건${failed ? `·실패 ${failed}` : ""}`;
+    const esc = Number(r.escalated ?? 0);
+    return `요약 ${r.done ?? 0}건${failed ? `·실패 ${failed}` : ""}${esc ? `·승급 ${esc}` : ""}`;
   }
   if (it.pipeline === "notifier") {
     const skipped = Number(r.skipped ?? 0);

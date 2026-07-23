@@ -1,6 +1,5 @@
 import os
 
-RESEARCH_MODEL = os.environ.get("RESEARCH_MODEL", "")
 RESEARCH_TIMEOUT = int(os.environ.get("RESEARCH_TIMEOUT", "180"))
 
 # 자동모드(APScheduler) — 기본 꺼짐
