@@ -71,3 +71,22 @@ test("숨김 개수를 요약해 보여준다", async () => {
   fireEvent.click(screen.getByLabelText(/미스릴/));
   expect(screen.getByText(/2개 중 1개 숨김/)).toBeTruthy();
 });
+
+test("체크 상태가 실제 설정을 반영한다 (지역=허용, 기업=표시)", async () => {
+  global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+    const u = String(url);
+    const body = u.includes("/api/facets")
+      ? FACETS
+      : { ...SETTINGS, allowed_regions: ["서울"], hidden_companies: ["미스릴"] };
+    return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+  }) as unknown as typeof fetch;
+
+  render(<Filters />);
+  await waitFor(() => expect(screen.getByLabelText(/서울/)).toBeTruthy());
+
+  const chk = (re: RegExp) => screen.getByLabelText(re) as HTMLInputElement;
+  expect(chk(/서울/).checked).toBe(true);    // 허용목록에 있음 → 체크
+  expect(chk(/경기/).checked).toBe(false);   // 허용목록에 없음 → 해제
+  expect(chk(/미스릴/).checked).toBe(false); // 숨김목록에 있음 → 해제
+  expect(chk(/토스/).checked).toBe(true);    // 숨김목록에 없음 → 체크
+});
