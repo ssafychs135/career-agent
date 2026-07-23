@@ -6,10 +6,12 @@ from fastapi import FastAPI, HTTPException
 from app import collect_scheduler, db
 from app.activity import Activity
 from app.claude_client import run_claude
+from app.research import discord
 from app.routers import collect as collect_router
 from app.routers import db as db_router
 from app.routers import facets as facets_router
 from app.routers import jobs as jobs_router
+from app.routers import notify as notify_router
 from app.routers import runs as runs_router
 from app.routers import settings as settings_router
 from app.routers import status as status_router
@@ -35,6 +37,7 @@ async def lifespan(app: FastAPI):
     async with app.state.db.acquire() as conn:
         await conn.execute("UPDATE jobs SET status='pending' WHERE status='processing'")
         settings = await get_settings(conn)
+    discord.set_webhook(settings.discord_webhook_url)  # 웹훅 출처=설정(env는 폴백)
     collect_scheduler.start_collect_scheduler(app)
     collect_scheduler.reschedule(app, settings)  # DB 값으로 트리거 정렬
     app.state.reschedule_pipelines = lambda s: collect_scheduler.reschedule(app, s)
@@ -56,6 +59,7 @@ app.include_router(settings_router.router)
 app.include_router(status_router.router)
 app.include_router(runs_router.router)
 app.include_router(facets_router.router)
+app.include_router(notify_router.router)
 
 
 @app.get("/api/health")

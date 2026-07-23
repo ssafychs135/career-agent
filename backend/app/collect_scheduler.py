@@ -4,10 +4,13 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.collect.collector import collect
 from app.collect.worker import worker_tick
+from app.notify.notifier import notify_tick
 from app.run_log import logged_run
 from app.settings_repo import get_settings
 
 log = logging.getLogger("collect.scheduler")
+
+NOTIFY_INTERVAL_MIN = 5  # 원본(n8n) 주기
 
 
 async def collector_job(get_ctx) -> None:
@@ -44,6 +47,23 @@ async def worker_job(get_ctx) -> None:
         )
 
 
+async def notifier_job(get_ctx) -> None:
+    pool, _http, _activity = get_ctx()
+    async with pool.acquire() as conn:
+        settings = await get_settings(conn)
+        if not settings.notify_enabled:
+            return
+        # 미전송이 없으면 아무것도 하지 않는다 — 발송 시도도, run_log 행도 없음(워커와 동일 패턴).
+        if not await conn.fetchval(
+            "SELECT 1 FROM jobs WHERE status='done' AND notified_at IS NULL LIMIT 1"
+        ):
+            return
+        await logged_run(
+            conn, pipeline="notifier", trigger="scheduled",
+            run=lambda: notify_tick(conn, settings),
+        )
+
+
 def start_collect_scheduler(app) -> None:
     """멱등. collector(cron 매일 collect_hour시)·worker(interval) 잡 등록.
 
@@ -56,6 +76,8 @@ def start_collect_scheduler(app) -> None:
     get_ctx = lambda: (app.state.db, app.state.http, app.state.activity)  # noqa: E731
     sched.add_job(collector_job, "cron", id="collector", hour=9, minute=0, args=[get_ctx])
     sched.add_job(worker_job, "interval", id="worker", minutes=5, args=[get_ctx])
+    sched.add_job(notifier_job, "interval", id="notifier",
+                  minutes=NOTIFY_INTERVAL_MIN, args=[get_ctx])
     sched.start()
     app.state.collect_scheduler = sched
     log.info("collect scheduler started")

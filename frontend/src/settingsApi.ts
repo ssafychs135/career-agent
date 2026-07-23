@@ -13,6 +13,7 @@ export interface Settings {
   discord_webhook_url: string;
   allowed_regions: string[];
   hidden_companies: string[];
+  notify_enabled: boolean;
   updated_at?: string;
 }
 
@@ -44,5 +45,11 @@ export async function runCollect(): Promise<{ scraped: number; inserted: number 
 export async function runWorker(): Promise<{ claimed: number; done: number; failed: number; skipped_tick: boolean }> {
   const r = await fetch("/api/collect/worker/run", { method: "POST" });
   if (!r.ok) throw new Error("worker run failed");
+  return r.json();
+}
+
+export async function runNotify(): Promise<{ picked: number; sent: number; skipped: number }> {
+  const r = await fetch("/api/notify/run", { method: "POST" });
+  if (!r.ok) throw new Error("notify run failed");
   return r.json();
 }

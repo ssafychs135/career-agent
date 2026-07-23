@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { vi, test, expect, beforeEach, afterEach } from "vitest";
 import Ops from "./Ops";
 
@@ -7,6 +7,7 @@ const SETTINGS = {
   max_pages: 9999, collect_hour: 9, batch_size: 20, model: "kanana",
   summary_backend: "local", max_attempts: 5, worker_interval_min: 5,
   enabled: false, discord_webhook_url: "",
+  notify_enabled: false,
 };
 const STATUS = {
   activity: { collector: null, worker: { stage: "요약 중", detail: "토스 · 백엔드", progress: "4/20" }, research: [] },
@@ -31,6 +32,7 @@ function mockFetch(statusOverride?: unknown) {
           started_at: "2026-07-23T09:00:00Z", finished_at: "2026-07-23T09:00:03Z", duration_ms: 3000 },
       ],
     };
+    else if (u.includes("/api/notify/run")) body = { picked: 3, sent: 2, skipped: 1 };
     else if (u.includes("/api/settings")) {
       if (init?.method === "PUT") { putBody = JSON.parse(init.body as string); body = putBody; }
       else body = SETTINGS;
@@ -95,4 +97,21 @@ test("수동 수집 후 실행 로그를 재조회한다", async () => {
     const after = fetchSpy.mock.calls.filter(([u]) => String(u).includes("/api/runs")).length;
     expect(after).toBeGreaterThan(before);
   });
+});
+
+test("알림 활성화 토글이 저장 페이로드에 담긴다", async () => {
+  render(<Ops />);
+  await waitFor(() => expect(screen.getByLabelText("알림 활성화")).toBeTruthy());
+  fireEvent.click(screen.getByLabelText("알림 활성화"));
+  fireEvent.click(screen.getByRole("button", { name: "저장" }));
+  await waitFor(() => expect(putBody).not.toBeNull());
+  expect(putBody!.notify_enabled).toBe(true);
+});
+
+test("지금 알림 발송 결과를 문구로 보여준다", async () => {
+  render(<Ops />);
+  await waitFor(() => expect(screen.getByText("지금 알림 발송")).toBeTruthy());
+  fireEvent.click(screen.getByText("지금 알림 발송"));
+  const section = screen.getByLabelText("알림 활성화").closest("section") as HTMLElement;
+  await waitFor(() => expect(within(section).getByText(/발송 2건/)).toBeTruthy());
 });

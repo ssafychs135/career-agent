@@ -69,3 +69,12 @@ def test_upsert_includes_global_filter_columns():
     assert "allowed_regions" in sql and "hidden_companies" in sql
     assert ["서울", "경기"] in params
     assert ["미스릴"] in params
+
+
+def test_notify_enabled_defaults_false_and_is_persisted():
+    from app.settings_repo import Settings, SETTINGS_DEFAULTS, build_upsert
+    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"]))
+    assert s.notify_enabled is False
+    sql, params = build_upsert(Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"], notify_enabled=True)))
+    assert "notify_enabled" in sql
+    assert True in params

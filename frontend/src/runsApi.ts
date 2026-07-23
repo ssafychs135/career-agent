@@ -1,4 +1,4 @@
-export type Pipeline = "collector" | "worker" | "research";
+export type Pipeline = "collector" | "worker" | "research" | "notifier";
 export type RunStatus = "ok" | "failed" | "skipped";
 
 export interface RunLogItem {

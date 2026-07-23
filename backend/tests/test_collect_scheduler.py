@@ -19,12 +19,12 @@ def _app():
     return app
 
 
-def test_start_registers_two_jobs(monkeypatch):
+def test_start_registers_three_jobs(monkeypatch):
     monkeypatch.setattr(cs, "AsyncIOScheduler", FakeSched)
     app = _app()
     cs.start_collect_scheduler(app)
     sched = app.state.collect_scheduler
-    assert set(sched.jobs) == {"collector", "worker"}
+    assert set(sched.jobs) == {"collector", "worker", "notifier"}
     assert sched.started is True
 
 
@@ -117,3 +117,51 @@ def test_reschedule_updates_triggers(monkeypatch):
     sched = app.state.collect_scheduler
     assert sched.jobs["collector"][1]["hour"] == 6
     assert sched.jobs["worker"][1]["minutes"] == 10
+
+
+def _notify_ctx(monkeypatch, *, enabled, has_unsent):
+    from app.settings_repo import Settings, SETTINGS_DEFAULTS
+    calls = {"logged_run": 0, "notify_tick": 0}
+
+    class _C:
+        async def fetchval(self, sql, *args):
+            return 1 if ("notified_at IS NULL" in sql and has_unsent) else None
+
+    conn = _C()
+
+    async def fake_get_settings(c):
+        return Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"], notify_enabled=enabled))
+    monkeypatch.setattr(cs, "get_settings", fake_get_settings)
+
+    async def fake_notify_tick(*a, **kw):
+        calls["notify_tick"] += 1
+        return {"picked": 0, "sent": 0, "skipped": 0}
+    monkeypatch.setattr(cs, "notify_tick", fake_notify_tick)
+
+    async def fake_logged_run(c, *, pipeline, trigger, run, **kw):
+        calls["logged_run"] += 1
+        calls["pipeline"], calls["trigger"] = pipeline, trigger
+        return await run()
+    monkeypatch.setattr(cs, "logged_run", fake_logged_run)
+
+    return calls, (lambda: (_Pool(conn), object(), Activity()))
+
+
+async def test_notifier_job_noop_when_disabled(monkeypatch):
+    calls, get_ctx = _notify_ctx(monkeypatch, enabled=False, has_unsent=True)
+    await cs.notifier_job(get_ctx)
+    assert calls["notify_tick"] == 0 and calls["logged_run"] == 0
+
+
+async def test_notifier_job_skips_when_nothing_unsent(monkeypatch):
+    calls, get_ctx = _notify_ctx(monkeypatch, enabled=True, has_unsent=False)
+    await cs.notifier_job(get_ctx)
+    assert calls["notify_tick"] == 0, "미전송 0건인데 발송 시도됨"
+    assert calls["logged_run"] == 0, "미전송 0건인데 run_log 행이 기록됨"
+
+
+async def test_notifier_job_runs_when_enabled_and_unsent(monkeypatch):
+    calls, get_ctx = _notify_ctx(monkeypatch, enabled=True, has_unsent=True)
+    await cs.notifier_job(get_ctx)
+    assert calls["notify_tick"] == 1 and calls["logged_run"] == 1
+    assert calls["pipeline"] == "notifier" and calls["trigger"] == "scheduled"
