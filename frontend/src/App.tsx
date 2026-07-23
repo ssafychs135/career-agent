@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from "react-router-dom";
 import Explorer from "./pages/Explorer";
 import Ops from "./pages/Ops";
+import Filters from "./pages/Filters";
 
 const active = ({ isActive }: { isActive: boolean }) => (isActive ? "active" : "");
 
@@ -17,6 +18,9 @@ function Rail() {
       <NavLink to="/" end title="운영" className={active}>
         ⚙
       </NavLink>
+      <NavLink to="/filters" title="전역 필터" className={active}>
+        ▣
+      </NavLink>
       <span style={{ flex: 1 }} />
     </nav>
   );
@@ -32,6 +36,7 @@ export default function App() {
             <Route path="/" element={<Ops />} />
             <Route path="/jobs" element={<Explorer />} />
             <Route path="/jobs/:source/:jobId" element={<Explorer />} />
+            <Route path="/filters" element={<Filters />} />
             {/* 옛 라우트 → 운영 대시보드로 통합(북마크 보호) */}
             <Route path="/settings" element={<Navigate to="/" replace />} />
             <Route path="/status" element={<Navigate to="/" replace />} />

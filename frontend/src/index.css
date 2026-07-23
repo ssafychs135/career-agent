@@ -519,3 +519,16 @@ button:disabled { opacity: 0.45; cursor: default; }
 .rsum { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rdur { color: var(--text-3); font-variant-numeric: tabular-nums; }
 .rtime { color: var(--text-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ── 전역 필터 — 체크 목록 ── */
+.chk-grid { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.chk-list { display: flex; flex-direction: column; max-height: 420px; overflow-y: auto; }
+.chk-list .chk { padding: 7px 2px; border-top: 1px solid var(--glass-edge); }
+.chk-list .chk:first-child { border-top: 0; }
+.chk {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 0.9rem; cursor: pointer; user-select: none;
+}
+.chk input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+.chk-n { color: var(--text-3); font-variant-numeric: tabular-nums; margin-left: auto; }
+.chk-list .chk span:nth-of-type(1) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
