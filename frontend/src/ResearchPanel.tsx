@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { postJobResearch } from "./researchApi";
 import { SPRING_UI, SPRING_MOMENTUM } from "./design/springs";
@@ -14,7 +14,9 @@ type Research = {
 
 type RefetchResult = { companyResearch: Research; jobResearch: Research };
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// 폴링 상한 — 백엔드 최악(기업+공고 리서치, 각 파싱 재시도 포함 ~12분)을 덮되
+// 프로세스가 중간에 죽어 status가 'running'에 묶인 경우의 무한 폴링은 막는다.
+const MAX_POLLS = 450; // × pollMs(2s) ≈ 15분
 
 /** Pulsing dots — an active, causal "working" signal while research runs (§16 status). */
 function Working() {
@@ -68,8 +70,6 @@ export function ResearchPanel({
   const [jr, setJr] = useState<Research>(jobResearch);
   const [busy, setBusy] = useState(false);
 
-  const done = (r: Research) => r?.status === "done" || r?.status === "failed";
-
   async function onResearch(force?: boolean) {
     setBusy(true);
     try {
@@ -78,17 +78,44 @@ export function ResearchPanel({
       } else {
         await trigger(source, jobId);
       }
-      for (let i = 0; i < 60; i++) {
-        await sleep(pollMs);
-        const fresh = await refetch();
-        setCr(fresh.companyResearch);
-        setJr(fresh.jobResearch);
-        if (done(fresh.jobResearch)) break;
-      }
+      // 202 반환 시점엔 서버가 이미 status='running'으로 마킹한 상태.
+      // 한 번 당겨와 아래 폴링 이펙트를 깨운다(이후 갱신은 이펙트가 담당).
+      const fresh = await refetch();
+      setCr(fresh.companyResearch);
+      setJr(fresh.jobResearch);
     } finally {
       setBusy(false);
     }
   }
+
+  // status가 'running'인 동안 폴링. 클릭 핸들러가 아니라 상태에 매달아서,
+  // 재마운트·새로고침·다른 경로에서 시작된 리서치도 갱신된다.
+  // refetch는 렌더마다 새 함수라 의존성에서 제외(source/jobId가 대신 식별).
+  useEffect(() => {
+    if (jr?.status !== "running") return;
+    let alive = true;
+    let ticks = 0;
+    const id = setInterval(async () => {
+      if (++ticks > MAX_POLLS) {
+        clearInterval(id);
+        return;
+      }
+      let fresh: RefetchResult;
+      try {
+        fresh = await refetch();
+      } catch {
+        return; // 일시 오류는 다음 틱에 재시도
+      }
+      if (!alive) return; // 언마운트/공고 전환 후 stale 반영 방지
+      setCr(fresh.companyResearch);
+      setJr(fresh.jobResearch);
+    }, pollMs);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jr?.status, source, jobId, pollMs]);
 
   const jrStatus = jr?.status;
   const hasBody = !!(cr?.overview || cr?.stability || jr?.tech_detail || jr?.role_detail);
