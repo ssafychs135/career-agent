@@ -46,6 +46,46 @@ test("triggers research and polls until done", async () => {
   await waitFor(() => expect(screen.getByText(/Spring 기반/)).toBeTruthy());
 });
 
+test("이미 running인 상태로 마운트되면 클릭 없이도 폴링해 갱신한다", async () => {
+  // 재마운트·새로고침·다른 경로에서 시작된 리서치 — 예전엔 클릭해야만 폴링해서 멈춰 보였다.
+  const refetch = vi.fn().mockResolvedValue({
+    companyResearch: { status: "done", overview: "핀테크" },
+    jobResearch: { status: "done", tech_detail: "Spring 기반" },
+  });
+
+  render(
+    <ResearchPanel
+      source="wanted"
+      jobId="42"
+      companyResearch={{ status: "running" }}
+      jobResearch={{ status: "running" }}
+      refetch={refetch}
+      trigger={vi.fn()}
+      pollMs={0}
+    />,
+  );
+
+  await waitFor(() => expect(screen.getByText(/Spring 기반/)).toBeTruthy());
+  expect(refetch).toHaveBeenCalled();
+});
+
+test("done 상태에서는 폴링하지 않는다", async () => {
+  const refetch = vi.fn();
+  render(
+    <ResearchPanel
+      source="wanted"
+      jobId="42"
+      companyResearch={{ status: "done", overview: "핀테크" }}
+      jobResearch={{ status: "done", tech_detail: "x" }}
+      refetch={refetch}
+      trigger={vi.fn()}
+      pollMs={0}
+    />,
+  );
+  await new Promise((r) => setTimeout(r, 20));
+  expect(refetch).not.toHaveBeenCalled();
+});
+
 test("failed research shows retry button, not a dead end", () => {
   render(
     <ResearchPanel
