@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { postJobResearch } from "./researchApi";
+import { getStatus } from "./statusApi";
 import { SPRING_UI, SPRING_MOMENTUM } from "./design/springs";
 
 type Research = {
@@ -14,9 +15,32 @@ type Research = {
 
 type RefetchResult = { companyResearch: Research; jobResearch: Research };
 
+/** /api/status의 activity.research 항목 — 실행 중인 리서치의 현재 단계. */
+type ResearchActivity = { detail_key: string; stage: string; detail: string };
+
+/** 이 공고에 해당하는 진행 단계를 고른다.
+ *  research_job은 기업 리서치를 먼저 수행하므로(키=기업명), 공고 항목(키=source:jobId)이
+ *  아직 없으면 기업 항목으로 폴백한다. */
+function pickStage(
+  acts: ResearchActivity[],
+  source: string,
+  jobId: string,
+  company?: string | null,
+): ResearchActivity | null {
+  const key = `${source}:${jobId}`;
+  return (
+    acts.find((a) => a.detail_key === key) ??
+    (company ? acts.find((a) => a.detail_key === company) : undefined) ??
+    null
+  );
+}
+
 // 폴링 상한 — 백엔드 최악(기업+공고 리서치, 각 파싱 재시도 포함 ~12분)을 덮되
 // 프로세스가 중간에 죽어 status가 'running'에 묶인 경우의 무한 폴링은 막는다.
 const MAX_POLLS = 450; // × pollMs(2s) ≈ 15분
+
+const defaultGetActivity = async (): Promise<ResearchActivity[]> =>
+  (await getStatus()).activity.research;
 
 /** Pulsing dots — an active, causal "working" signal while research runs (§16 status). */
 function Working() {
@@ -55,7 +79,9 @@ export function ResearchPanel({
   companyResearch,
   jobResearch,
   refetch,
+  company,
   trigger = postJobResearch,
+  getActivity = defaultGetActivity,
   pollMs = 2000,
 }: {
   source: string;
@@ -63,12 +89,15 @@ export function ResearchPanel({
   companyResearch: Research;
   jobResearch: Research;
   refetch: () => Promise<RefetchResult>;
+  company?: string | null;
   trigger?: (source: string, jobId: string, force?: boolean) => Promise<unknown>;
+  getActivity?: () => Promise<ResearchActivity[]>;
   pollMs?: number;
 }) {
   const [cr, setCr] = useState<Research>(companyResearch);
   const [jr, setJr] = useState<Research>(jobResearch);
   const [busy, setBusy] = useState(false);
+  const [stage, setStage] = useState<ResearchActivity | null>(null);
 
   async function onResearch(force?: boolean) {
     setBusy(true);
@@ -92,7 +121,10 @@ export function ResearchPanel({
   // 재마운트·새로고침·다른 경로에서 시작된 리서치도 갱신된다.
   // refetch는 렌더마다 새 함수라 의존성에서 제외(source/jobId가 대신 식별).
   useEffect(() => {
-    if (jr?.status !== "running") return;
+    if (jr?.status !== "running") {
+      setStage(null); // 완료/실패 시 단계 표시 정리(같은 값이면 React가 리렌더 생략)
+      return;
+    }
     let alive = true;
     let ticks = 0;
     const id = setInterval(async () => {
@@ -109,13 +141,20 @@ export function ResearchPanel({
       if (!alive) return; // 언마운트/공고 전환 후 stale 반영 방지
       setCr(fresh.companyResearch);
       setJr(fresh.jobResearch);
+      // 진행 단계는 부가 정보 — 실패해도 본 폴링을 막지 않는다.
+      try {
+        const acts = await getActivity();
+        if (alive) setStage(pickStage(acts, source, jobId, company));
+      } catch {
+        /* 단계 표시 실패는 무시 */
+      }
     }, pollMs);
     return () => {
       alive = false;
       clearInterval(id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jr?.status, source, jobId, pollMs]);
+  }, [jr?.status, source, jobId, pollMs, company]);
 
   const jrStatus = jr?.status;
   const hasBody = !!(cr?.overview || cr?.stability || jr?.tech_detail || jr?.role_detail);
@@ -149,7 +188,20 @@ export function ResearchPanel({
               exit={{ opacity: 0 }}
               style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
             >
-              리서치 중… <Working />
+              <span
+                data-testid="research-stage"
+                style={{
+                  maxWidth: "24ch",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {stage
+                  ? `${stage.stage}${stage.detail ? ` · ${stage.detail}` : ""}`
+                  : "리서치 중…"}
+              </span>
+              <Working />
             </motion.span>
           )}
           {!busy && jrStatus === "failed" && (
