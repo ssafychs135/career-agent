@@ -3,7 +3,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { getJobs, type JobSummary } from "../api";
 import JobDetailView from "./JobDetailView";
 import RangeSlider from "../components/RangeSlider";
-import { yearLabel } from "../career";
 
 const PAGE = 100; // /api/jobs limit cap
 const CAREER_MAX = 10; // 연차 슬라이더 상한(=이상, 무한대로 취급)
@@ -254,7 +253,6 @@ export default function Explorer() {
             <div className="range-field">
               <div className="range-label">
                 <span>연차</span>
-                <span className="caption">{yearLabel(careerLo, CAREER_MAX)} ~ {yearLabel(careerHi, CAREER_MAX)}</span>
               </div>
               <RangeSlider
                 min={0} max={CAREER_MAX} lo={careerLo} hi={careerHi}
