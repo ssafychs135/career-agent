@@ -20,6 +20,16 @@ def override_get_conn():
         main.app.dependency_overrides.clear()
 
 
+@pytest.fixture(autouse=True)
+def stub_settings(monkeypatch):
+    """conn이 None인 라우팅 테스트라 get_settings를 기본값으로 대체."""
+    from app.settings_repo import Settings, SETTINGS_DEFAULTS
+
+    async def fake_get_settings(conn):
+        return Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"]))
+    monkeypatch.setattr(jobs_router, "get_settings", fake_get_settings)
+
+
 def test_list_jobs(monkeypatch):
     async def fake_list_jobs(conn, **filters):
         assert filters["keyword"] == "dev"
@@ -68,3 +78,23 @@ def test_job_detail_not_found(monkeypatch):
     monkeypatch.setattr(jobs_router, "get_job", fake_get_job)
     r = TestClient(main.app).get("/api/jobs/x/y")
     assert r.status_code == 404
+
+
+def test_list_jobs_applies_global_filters(monkeypatch):
+    from app.settings_repo import Settings, SETTINGS_DEFAULTS
+    seen = {}
+
+    async def fake_get_settings(conn):
+        return Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"],
+                               allowed_regions=["서울"], hidden_companies=["미스릴"]))
+    monkeypatch.setattr(jobs_router, "get_settings", fake_get_settings)
+
+    async def fake_list_jobs(conn, **filters):
+        seen.update(filters)
+        return {"items": [], "total": 0, "limit": 20, "offset": 0}
+    monkeypatch.setattr(jobs_router, "list_jobs", fake_list_jobs)
+
+    r = TestClient(main.app).get("/api/jobs")
+    assert r.status_code == 200
+    assert seen["allowed_regions"] == ["서울"]
+    assert seen["hidden_companies"] == ["미스릴"]
