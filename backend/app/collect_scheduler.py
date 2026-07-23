@@ -30,6 +30,12 @@ async def worker_job(get_ctx) -> None:
         settings = await get_settings(conn)
         if not settings.enabled:
             return
+        # 대기 건이 없으면 아무것도 하지 않는다 — LLM 헬스 요청도, run_log 행도 남기지 않음.
+        # claim이 아니라 peek인 이유: 배치를 먼저 점유하면 헬스 실패 시 processing 행을
+        # pending으로 되돌려야 하고, 되돌리기 전에 죽으면 행이 묶인다.
+        # (peek↔claim 사이 신규 유입은 다음 틱이 처리 — 무해)
+        if not await conn.fetchval("SELECT 1 FROM jobs WHERE status='pending' LIMIT 1"):
+            return
         await logged_run(
             conn, pipeline="worker", trigger="scheduled",
             clear=lambda: activity.clear("worker"),
