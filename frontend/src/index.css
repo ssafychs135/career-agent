@@ -424,8 +424,12 @@ button:disabled { opacity: 0.45; cursor: default; }
 .range-track { left: 0; right: 0; background: var(--chip); }
 /* fill의 left/right는 RangeSlider가 반지름 보정한 calc()로 인라인 지정(양끝 삐져나감 방지). */
 .range-fill { background: var(--accent); }
+/* padding·border 0 필수: 전역 `input, select`가 padding .5rem .7rem + border 1px를 주는데,
+   네이티브 range 썸은 content box 안에서만 이동한다. 상속되면 이동 범위가 양쪽 12.2px씩
+   좁아져 트랙 끝·fill이 썸 밖으로 어긋난다(썸 반지름 보정은 padding 0을 가정). */
 .range-in {
-  position: absolute; top: 50%; transform: translateY(-50%); left: 0; width: 100%; height: 20px; margin: 0;
+  position: absolute; top: 50%; transform: translateY(-50%); left: 0; width: 100%; height: 20px;
+  margin: 0; padding: 0; border: 0;
   -webkit-appearance: none; appearance: none; background: transparent; pointer-events: none;
 }
 .range-in::-webkit-slider-runnable-track { height: 20px; background: transparent; border: none; }
@@ -433,13 +437,14 @@ button:disabled { opacity: 0.45; cursor: default; }
 /* 촉각적 썸 — hover 확대, press 시 확대+accent 링(apple-design §1 조작 지점 피드백). */
 .range-in::-webkit-slider-thumb {
   -webkit-appearance: none; pointer-events: auto; cursor: grab;
-  height: 20px; width: 20px; border-radius: 999px; background: #fff;
+  /* border-box: 보더 포함 20px여야 반지름 10px이 RangeSlider의 R 상수와 일치 */
+  box-sizing: border-box; height: 20px; width: 20px; border-radius: 999px; background: #fff;
   border: 1px solid var(--hairline); box-shadow: var(--float-sm);
   transition: transform .14s cubic-bezier(.2,.7,.2,1), box-shadow .14s ease, border-color .14s ease;
 }
 .range-in::-moz-range-thumb {
   pointer-events: auto; cursor: grab;
-  height: 20px; width: 20px; border-radius: 999px; background: #fff;
+  box-sizing: border-box; height: 20px; width: 20px; border-radius: 999px; background: #fff;
   border: 1px solid var(--hairline); box-shadow: var(--float-sm);
   transition: transform .14s cubic-bezier(.2,.7,.2,1), box-shadow .14s ease, border-color .14s ease;
 }
