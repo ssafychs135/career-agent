@@ -188,12 +188,15 @@ export default function Explorer() {
 
   // 열린 공고(URL)의 기업이 선택돼 있어야 상세를 보인다 → 선택 해제 시 상세도 닫힘(일관성).
   // 로딩 중(딥링크)엔 낙관적으로 표시(JobDetailView가 자체 조회).
+  // 목록(GET /api/jobs)은 전역 필터가 적용돼 있어, 필터로 걸러진 공고는 목록에 아예 없을 수 있다.
+  // 그런 경우엔 기업 선택 여부를 판단할 수 없으므로 그대로 보여준다 — 상세 조회 API는 필터를 타지 않으므로
+  // JobDetailView가 자체 fetch로 정상 렌더링(또는 자체 404)한다. 딥링크는 항상 풀려야 한다.
   const openJobCompany = useMemo(() => {
     if (!source || !jobId) return null;
     return jobs.find((x) => x.source === source && x.job_id === jobId)?.company?.trim() ?? null;
   }, [jobs, source, jobId]);
   const showDetail =
-    !!source && !!jobId && (!loaded || (!!openJobCompany && selected.has(openJobCompany)));
+    !!source && !!jobId && (!loaded || !openJobCompany || selected.has(openJobCompany));
 
   // 좁은 화면 단일-패널 드릴다운.
   const mobilePane = showDetail ? "detail" : selCount > 0 ? "jobs" : "companies";

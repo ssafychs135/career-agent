@@ -22,7 +22,14 @@ export default function Filters() {
     if (!form) return;
     setBusy(true);
     try {
-      const r = await putSettings(form);
+      // 이 페이지는 전역 필터 두 필드만 소유한다. PUT은 전체 문서를 덮어쓰므로,
+      // 마운트 시점 스냅샷을 그대로 쓰면 그 사이 Ops에서 바뀐 설정(enabled 등)을 되돌린다.
+      const fresh = await getSettings();
+      const r = await putSettings({
+        ...fresh,
+        allowed_regions: form.allowed_regions,
+        hidden_companies: form.hidden_companies,
+      });
       setForm(r);
       setSaved(r);
     } finally {

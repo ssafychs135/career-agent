@@ -72,6 +72,34 @@ test("숨김 개수를 요약해 보여준다", async () => {
   expect(screen.getByText(/2개 중 1개 숨김/)).toBeTruthy();
 });
 
+test("저장 시 마운트 이후 바뀐 다른 설정(enabled 등)을 되돌리지 않고 최신값 위에 필터만 덮어쓴다 (I2)", async () => {
+  let settingsCall = 0;
+  global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+    const u = String(url);
+    if (u.includes("/api/facets")) return Promise.resolve({ ok: true, json: () => Promise.resolve(FACETS) });
+    if (u.includes("/api/settings")) {
+      if (init?.method === "PUT") {
+        putBody = JSON.parse(init.body as string);
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(putBody) });
+      }
+      settingsCall += 1;
+      // 마운트 시점엔 enabled: false. 저장 직전 재조회(getSettings)에선 Ops에서 켜진 것으로 응답.
+      const body = settingsCall === 1 ? SETTINGS : { ...SETTINGS, enabled: true };
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
+    }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+  }) as unknown as typeof fetch;
+
+  render(<Filters />);
+  await waitFor(() => expect(screen.getByLabelText(/서울/)).toBeTruthy());
+  fireEvent.click(screen.getByLabelText(/서울/));
+  fireEvent.click(screen.getByRole("button", { name: "저장" }));
+
+  await waitFor(() => expect(putBody).not.toBeNull());
+  expect(putBody!.enabled).toBe(true); // 마운트 스냅샷(false)이 아니라 저장 직전 최신값을 보존
+  expect(putBody!.allowed_regions).toEqual(["서울"]); // 이 페이지가 소유한 필드는 그대로 반영
+});
+
 test("체크 상태가 실제 설정을 반영한다 (지역=허용, 기업=표시)", async () => {
   global.fetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
     const u = String(url);

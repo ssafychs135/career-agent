@@ -1,8 +1,8 @@
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { vi, test, expect, beforeEach, type Mock } from "vitest";
 import Explorer from "./Explorer";
-import { getJobs } from "../api";
+import { getJobs, getJob } from "../api";
 
 vi.mock("../api");
 
@@ -124,6 +124,43 @@ test("career slider hides companies whose jobs fall outside the selected range",
   fireEvent.change(screen.getByLabelText("최소 연차"), { target: { value: "5" } });
   await waitFor(() => expect(screen.queryByText("뉴런웍스")).toBeNull());
   expect(screen.queryByText("파스텔로")).toBeNull();
+});
+
+test("deep link to a job absent from the filtered list still renders its detail (I1)", async () => {
+  // 전역 필터에 걸려 GET /api/jobs 응답에 없는 공고로 딥링크 — 상세 조회 API는 필터를 안 타므로
+  // JobDetailView가 자체 fetch로 렌더링해야 한다(플래시 후 사라지면 안 됨).
+  (getJob as Mock).mockResolvedValue({
+    job: {
+      source: "wanted",
+      job_id: "999",
+      company: "히든컴퍼니",
+      title: "숨겨진 공고",
+      url: "http://x",
+      locations: "서울 강남구",
+      min_career: 0,
+      max_career: 3,
+      tech_stacks: [],
+      summary: null,
+      status: "open",
+      attempts: 0,
+      collected_at: "2026-07-20",
+      updated_at: null,
+      closed_at: null,
+    },
+    companyResearch: null,
+    jobResearch: null,
+  });
+  render(
+    <MemoryRouter initialEntries={["/jobs/wanted/999"]}>
+      <Routes>
+        <Route path="/jobs/:source/:jobId" element={<Explorer />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  // 목록 로딩(loaded=true)이 끝난 뒤에도 상세가 유지돼야 한다.
+  await waitFor(() => expect(screen.getByText("뉴런웍스")).toBeTruthy());
+  await waitFor(() => expect(screen.getByTestId("job-title")).toBeTruthy());
+  expect(screen.getByTestId("job-title").textContent).toBe("숨겨진 공고");
 });
 
 test("selecting a region reveals a district (세부 지역) filter that narrows further", async () => {

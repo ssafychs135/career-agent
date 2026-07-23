@@ -1,6 +1,9 @@
+import inspect
+
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
+from app import facets_repo
 from app.facets_repo import COMPANIES_SQL, REGIONS_SQL, get_facets
 from app.routers import facets as facets_router
 
@@ -55,3 +58,14 @@ async def test_facets_endpoint(monkeypatch):
         r = await c.get("/api/facets")
     assert r.status_code == 200
     assert r.json()["regions"][0]["name"] == "서울"
+
+
+def test_facets_never_reference_settings():
+    # /api/facets는 전역 필터의 escape hatch — 숨긴 기업도 보여야 다시 켤 수 있다.
+    # get_settings/hidden_companies/allowed_regions를 참조하지 않는지 소스로 못박아,
+    # 이후 누가 설정을 끌어들이면 이 테스트가 바로 실패하게 한다.
+    banned = ("get_settings", "hidden_companies", "allowed_regions")
+    for module in (facets_repo, facets_router):
+        src = inspect.getsource(module)
+        for name in banned:
+            assert name not in src, f"{module.__name__} must not reference {name}"

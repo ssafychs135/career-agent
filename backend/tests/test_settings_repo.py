@@ -49,7 +49,7 @@ def test_build_upsert_is_singleton_and_parameterized():
     sql, params = build_upsert(Settings(**_valid(keywords=["x"])))
     assert "INSERT INTO app_settings" in sql
     assert "id" in sql and "ON CONFLICT (id) DO UPDATE SET" in sql
-    assert "$1" in sql and "$12" in sql  # 12개 편집 컬럼
+    assert "$1" in sql and "$14" in sql  # 14개 편집 컬럼
     assert params[0] == ["x"]            # keywords 배열 그대로(asyncpg text[])
     assert params[1] == [518, 507]
 
