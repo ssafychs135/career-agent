@@ -16,6 +16,7 @@ test("labels and status class", () => {
   expect(pipelineLabel("collector")).toBe("수집기");
   expect(pipelineLabel("worker")).toBe("요약");
   expect(pipelineLabel("research")).toBe("리서치");
+  expect(pipelineLabel("notifier")).toBe("알림");
   expect(triggerLabel("scheduled")).toBe("자동");
   expect(triggerLabel("manual")).toBe("수동");
   expect(statusClass("ok")).toBe("rdot-ok");
@@ -35,6 +36,13 @@ test("worker summary variants", () => {
     .toBe("요약 5건·실패 2");
   expect(runSummary(item({ pipeline: "worker", status: "skipped", result: { skipped_tick: true } })))
     .toBe("건너뜀·LLM 대기");
+});
+
+test("notifier summary variants", () => {
+  expect(runSummary(item({ pipeline: "notifier", result: { sent: 12, skipped: 0 } })))
+    .toBe("발송 12건");
+  expect(runSummary(item({ pipeline: "notifier", result: { sent: 12, skipped: 3 } })))
+    .toBe("발송 12건 · 건너뜀 3");
 });
 
 test("research summary variants", () => {

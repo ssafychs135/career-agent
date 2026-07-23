@@ -15,16 +15,25 @@ def _row(i, company="미스릴", locations="서울 강남구"):
 
 
 class FakeConn:
-    def __init__(self, rows):
+    def __init__(self, rows, lock_ok=True):
         self._rows = rows
+        self._lock_ok = lock_ok
         self.marked = []          # 마킹된 id 묶음(호출 단위)
+        self.unlocked = False
 
     async def fetch(self, sql, *args):
         return self._rows
 
+    async def fetchval(self, sql, *args):
+        if "pg_try_advisory_lock" in sql:
+            return self._lock_ok
+        return None
+
     async def execute(self, sql, *args):
         if "notified_at=now()" in sql:
             self.marked.append(list(args[0]))
+        elif "pg_advisory_unlock" in sql:
+            self.unlocked = True
 
 
 async def test_no_rows_sends_and_marks_nothing():
@@ -72,6 +81,15 @@ async def test_mid_chunk_failure_marks_only_successful_chunks():
     with pytest.raises(RuntimeError):
         await notify_tick(conn, _settings(), sender=flaky)
     assert [len(m) for m in conn.marked] == [10]   # 1번 청크만 마킹
+
+
+async def test_lock_not_acquired_sends_nothing():
+    """동시 실행 방지: advisory lock을 못 잡으면 아무것도 조회·발송하지 않는다."""
+    conn = FakeConn([_row(1)], lock_ok=False)
+    sent = []
+    out = await notify_tick(conn, _settings(), sender=lambda c, e: sent.append(e))
+    assert out == {"picked": 0, "sent": 0, "skipped": 0}
+    assert sent == [] and conn.marked == []
 
 
 async def test_first_chunk_carries_header_content():
