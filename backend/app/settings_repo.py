@@ -3,6 +3,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.llm_tier import LADDER
+
 SETTINGS_DEFAULTS = dict(
     keywords=["백엔드"],  # 비어 있으면 안 됨: _clean_keywords가 []를 거부(무레코드 시 get_settings 폴백에 사용)
     allowed_wanted_categories=[518, 507], max_career_years=2,
@@ -11,6 +13,7 @@ SETTINGS_DEFAULTS = dict(
     max_attempts=5, worker_interval_min=5, enabled=False, discord_webhook_url="",
     allowed_regions=[], hidden_companies=[],
     notify_enabled=False,
+    summary_model="", research_model="",
 )
 
 # UPSERT 컬럼 순서(단일 소스 오브 트루스). updated_at은 now()로 별도 처리.
@@ -20,6 +23,7 @@ _COLUMNS = [
     "worker_interval_min", "enabled", "discord_webhook_url",
     "allowed_regions", "hidden_companies",
     "notify_enabled",
+    "summary_model", "research_model",
 ]
 
 
@@ -41,6 +45,9 @@ class Settings(BaseModel):
     hidden_companies: list[str] = Field(default_factory=list)
     # 알림 발송 마스터 스위치 — 컷오버 통제를 위해 기본 false
     notify_enabled: bool = False
+    # claude 모델 티어 오버라이드. 빈 문자열이면 llm_tier.TASK_MODEL의 코드 기본값.
+    summary_model: str = ""
+    research_model: str = ""
     updated_at: Optional[datetime] = None
 
     @field_validator("keywords")
@@ -50,6 +57,14 @@ class Settings(BaseModel):
         if not cleaned:
             raise ValueError("keywords must have at least one non-empty value")
         return cleaned
+
+    @field_validator("summary_model", "research_model")
+    @classmethod
+    def _tier_alias(cls, v: str) -> str:
+        v = (v or "").strip()
+        if v and v not in LADDER:
+            raise ValueError(f"model must be empty or one of {LADDER}")
+        return v
 
 
 def build_upsert(s: Settings) -> tuple[str, list]:

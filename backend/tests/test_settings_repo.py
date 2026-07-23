@@ -78,3 +78,55 @@ def test_notify_enabled_defaults_false_and_is_persisted():
     sql, params = build_upsert(Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"], notify_enabled=True)))
     assert "notify_enabled" in sql
     assert True in params
+
+
+def test_task_models_default_to_empty():
+    from app.settings_repo import Settings, SETTINGS_DEFAULTS
+    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"]))
+    assert s.summary_model == ""
+    assert s.research_model == ""
+
+
+def test_task_models_accept_ladder_aliases():
+    from app.settings_repo import Settings, SETTINGS_DEFAULTS
+    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"],
+                        summary_model="haiku", research_model="opus"))
+    assert s.summary_model == "haiku"
+    assert s.research_model == "opus"
+
+
+def test_task_models_reject_unknown_alias():
+    """오타를 저장 시점에 막는다 — 안 막으면 배포 후 첫 실행에서 프로세스 실패로 드러난다."""
+    from app.settings_repo import Settings, SETTINGS_DEFAULTS
+    with pytest.raises(ValidationError):
+        Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"], summary_model="gpt-4"))
+    with pytest.raises(ValidationError):
+        Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"], research_model="claude-opus-4-8"))
+
+
+def test_task_models_normalize_blank_to_empty():
+    from app.settings_repo import Settings, SETTINGS_DEFAULTS
+    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"], research_model="   "))
+    assert s.research_model == ""
+
+
+def test_upsert_includes_task_model_columns():
+    from app.settings_repo import Settings, SETTINGS_DEFAULTS, build_upsert
+    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"],
+                        summary_model="sonnet", research_model="opus"))
+    sql, params = build_upsert(s)
+    assert "summary_model" in sql and "research_model" in sql
+    assert params[-2] == "sonnet"
+    assert params[-1] == "opus"
+
+
+def test_migration_defaults_match_settings_defaults():
+    """DDL의 DEFAULT와 SETTINGS_DEFAULTS가 어긋나면 배포 직후 동작이 조용히 바뀐다."""
+    from pathlib import Path
+    from app.settings_repo import SETTINGS_DEFAULTS
+    ddl = (Path(__file__).resolve().parents[1]
+           / "migrations" / "versions" / "0007_task_models.py").read_text()
+    assert "summary_model text NOT NULL DEFAULT ''" in ddl
+    assert "research_model text NOT NULL DEFAULT ''" in ddl
+    assert SETTINGS_DEFAULTS["summary_model"] == ""
+    assert SETTINGS_DEFAULTS["research_model"] == ""
