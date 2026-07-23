@@ -418,9 +418,11 @@ button:disabled { opacity: 0.45; cursor: default; }
    ============================================================================ */
 .range-field { display: flex; flex-direction: column; gap: 3px; }
 .range-label { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.82rem; font-weight: 600; color: var(--text-2); }
-.range { position: relative; height: 24px; }
-.range-track, .range-fill { position: absolute; top: 50%; transform: translateY(-50%); height: 4px; border-radius: 999px; }
+.range-wrap { position: relative; }
+.range { position: relative; height: 22px; }
+.range-track, .range-fill { position: absolute; top: 50%; transform: translateY(-50%); height: 5px; border-radius: 999px; }
 .range-track { left: 0; right: 0; background: var(--chip); }
+/* fill의 left/right는 RangeSlider가 반지름 보정한 calc()로 인라인 지정(양끝 삐져나감 방지). */
 .range-fill { background: var(--accent); }
 .range-in {
   position: absolute; top: 50%; transform: translateY(-50%); left: 0; width: 100%; height: 20px; margin: 0;
@@ -428,18 +430,43 @@ button:disabled { opacity: 0.45; cursor: default; }
 }
 .range-in::-webkit-slider-runnable-track { height: 20px; background: transparent; border: none; }
 .range-in::-moz-range-track { height: 20px; background: transparent; border: none; }
+/* 촉각적 썸 — hover 확대, press 시 확대+accent 링(apple-design §1 조작 지점 피드백). */
 .range-in::-webkit-slider-thumb {
-  -webkit-appearance: none; pointer-events: auto; cursor: pointer;
+  -webkit-appearance: none; pointer-events: auto; cursor: grab;
   height: 20px; width: 20px; border-radius: 999px; background: #fff;
   border: 1px solid var(--hairline); box-shadow: var(--float-sm);
+  transition: transform .14s cubic-bezier(.2,.7,.2,1), box-shadow .14s ease, border-color .14s ease;
 }
 .range-in::-moz-range-thumb {
-  pointer-events: auto; cursor: pointer;
+  pointer-events: auto; cursor: grab;
   height: 20px; width: 20px; border-radius: 999px; background: #fff;
   border: 1px solid var(--hairline); box-shadow: var(--float-sm);
+  transition: transform .14s cubic-bezier(.2,.7,.2,1), box-shadow .14s ease, border-color .14s ease;
+}
+.range-in:hover::-webkit-slider-thumb { transform: scale(1.08); }
+.range-in:hover::-moz-range-thumb { transform: scale(1.08); }
+.range-in:active::-webkit-slider-thumb {
+  cursor: grabbing; transform: scale(1.16); border-color: var(--accent);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 14%, transparent), var(--float-sm);
+}
+.range-in:active::-moz-range-thumb {
+  cursor: grabbing; transform: scale(1.16); border-color: var(--accent);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 14%, transparent), var(--float-sm);
 }
 .range-in:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }
 .range-in:focus-visible::-moz-range-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* 값 라벨 — 각 손잡이 아래를 따라다님(left는 RangeSlider가 썸 중심에 clamp로 인라인 지정). */
+.range-scale { position: relative; height: 1.05rem; margin-top: 1px; }
+.range-val {
+  position: absolute; transform: translateX(-50%);
+  font-size: 0.76rem; font-weight: 600; color: var(--text-3);
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  .range-in::-webkit-slider-thumb, .range-in::-moz-range-thumb { transition: box-shadow .14s ease, border-color .14s ease; }
+  .range-in:hover::-webkit-slider-thumb, .range-in:hover::-moz-range-thumb,
+  .range-in:active::-webkit-slider-thumb, .range-in:active::-moz-range-thumb { transform: none; }
+}
 
 /* ============================================================================
    Status 모니터 — 요약 pill 먼저, 그다음 파이프라인 행(§ UI: 요약→상세)
