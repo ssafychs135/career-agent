@@ -9,6 +9,7 @@ SETTINGS_DEFAULTS = dict(
     max_pages=9999, collect_hour=9, batch_size=20,
     model="kanana-1.5-8b-instruct-2505-mlx", summary_backend="local",
     max_attempts=5, worker_interval_min=5, enabled=False, discord_webhook_url="",
+    allowed_regions=[], hidden_companies=[],
 )
 
 # UPSERT 컬럼 순서(단일 소스 오브 트루스). updated_at은 now()로 별도 처리.
@@ -16,6 +17,7 @@ _COLUMNS = [
     "keywords", "allowed_wanted_categories", "max_career_years", "max_pages",
     "collect_hour", "batch_size", "model", "summary_backend", "max_attempts",
     "worker_interval_min", "enabled", "discord_webhook_url",
+    "allowed_regions", "hidden_companies",
 ]
 
 
@@ -32,6 +34,9 @@ class Settings(BaseModel):
     worker_interval_min: int = Field(ge=1)
     enabled: bool
     discord_webhook_url: str = ""
+    # 전역 필터 — 빈 배열이면 미적용(지역=전체 표시, 기업=아무것도 숨기지 않음)
+    allowed_regions: list[str] = Field(default_factory=list)
+    hidden_companies: list[str] = Field(default_factory=list)
     updated_at: Optional[datetime] = None
 
     @field_validator("keywords")

@@ -52,3 +52,20 @@ def test_build_upsert_is_singleton_and_parameterized():
     assert "$1" in sql and "$12" in sql  # 12개 편집 컬럼
     assert params[0] == ["x"]            # keywords 배열 그대로(asyncpg text[])
     assert params[1] == [518, 507]
+
+
+def test_settings_defaults_include_empty_global_filters():
+    from app.settings_repo import Settings, SETTINGS_DEFAULTS
+    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"]))
+    assert s.allowed_regions == []
+    assert s.hidden_companies == []
+
+
+def test_upsert_includes_global_filter_columns():
+    from app.settings_repo import Settings, SETTINGS_DEFAULTS, build_upsert
+    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"],
+                        allowed_regions=["서울", "경기"], hidden_companies=["미스릴"]))
+    sql, params = build_upsert(s)
+    assert "allowed_regions" in sql and "hidden_companies" in sql
+    assert ["서울", "경기"] in params
+    assert ["미스릴"] in params
