@@ -163,7 +163,7 @@ parsed, used = await _run_and_parse(prompt, runner, model, on_step=_step)
 
 ### 실제 사용 모델 기록
 
-`store.save_company`/`save_job`의 `model=` 인자에는 지금 `RESEARCH_MODEL` env가 들어간다. 이 env의 기본값이 빈 문자열이고 프로덕션 backend 컨테이너에 설정돼 있지 않아 **`research_companies.model`/`research_jobs.model` 컬럼이 항상 비어 있다.**
+`store.save_company`/`save_job`의 `model=` 인자에는 지금 `RESEARCH_MODEL` env가 들어간다. 이 env의 기본값이 빈 문자열이고 프로덕션 backend 컨테이너에 설정돼 있지 않아 **`company_research.model`/`job_research.model` 컬럼이 항상 비어 있다.**
 
 이 자리를 `_run_and_parse`가 반환한 실제 사용 모델로 교체한다. 관측이 마이그레이션 없이 생기고 죽은 env가 하나 정리된다.
 
@@ -198,7 +198,7 @@ BackgroundTask 안에서 조회하지 않는 이유: 리서치는 몇 분 걸리
 
 `escalated`는 이번 틱에서 승급 티어로 요약을 **시도한** 잡 수다(성공 여부 무관). 승급이 성공했는지는 같은 줄의 `done`/`실패`와 함께 읽는다.
 
-**3. 리서치 상세** — 사용 모델 칩. `research_companies.model`/`research_jobs.model`이 채워지므로 API가 이미 내려주는 값을 표시만 한다.
+**3. 리서치 상세** — 사용 모델 칩. `job_research.model`이 채워져도 API가 아직 안 내려준다 — `jobs_repo._DETAIL_SQL`은 `jr.tech_detail`·`jr.status` 등 필요한 컬럼만 별칭으로 뽑고 `_split_detail`이 그 목록대로 dict를 만든다. `jr.model AS jr_model`을 SELECT에, `"model"` 키를 `job_research` 블록에 더해야 한다.
 
 ## 컷오버
 
