@@ -9,6 +9,8 @@ def test_build_query_no_filters():
     assert "has_company_research" in sql
     assert "has_job_research" in sql
     assert "ORDER BY collected_at DESC" in sql
+    # 결정적 페이지네이션 — (source, job_id) 유니크 tiebreaker로 OFFSET 중복/누락 방지.
+    assert "collected_at DESC NULLS LAST, source, job_id" in sql
     assert params == [20, 0]
 
 

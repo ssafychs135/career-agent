@@ -44,11 +44,17 @@ export default function Explorer() {
     let cancelled = false;
     (async () => {
       try {
+        // (source, job_id)로 중복 제거 — 페이지네이션 경계/수집 중 삽입으로 같은 공고가
+        // 두 페이지에 걸쳐 올 수 있음. 중복이면 아이템이 항상 선택된 것처럼 보이는 버그 방지.
+        const seen = new Set<string>();
         const all: JobSummary[] = [];
         for (let off = 0; off < 5000; off += PAGE) {
           const p = await getJobs({ limit: PAGE, offset: off });
-          all.push(...p.items);
-          if (all.length >= p.total || p.items.length === 0) break;
+          for (const it of p.items) {
+            const key = `${it.source}:${it.job_id}`;
+            if (!seen.has(key)) { seen.add(key); all.push(it); }
+          }
+          if (seen.size >= p.total || p.items.length === 0) break;
         }
         if (!cancelled) {
           setJobs(all);

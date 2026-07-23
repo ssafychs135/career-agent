@@ -52,7 +52,9 @@ def build_list_query(
     offset_n = len(params)
     sql = (
         f"{_SELECT}{where} "
-        f"ORDER BY collected_at DESC NULLS LAST "
+        # (source, job_id) 유니크 키를 tiebreaker로 — collected_at 동값이 많아(배치 수집)
+        # tiebreaker 없으면 OFFSET 페이지네이션이 동값 경계 행을 중복/누락시킴.
+        f"ORDER BY collected_at DESC NULLS LAST, source, job_id "
         f"LIMIT ${limit_n} OFFSET ${offset_n}"
     )
     return sql, params
