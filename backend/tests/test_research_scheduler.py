@@ -6,6 +6,11 @@ from fastapi.testclient import TestClient
 from app.research import scheduler
 
 
+class _FakeDb:
+    async def fetchrow(self, sql, *args):
+        return None
+
+
 def _app_with_scheduler_lifespan():
     """Plan ②의 단일 lifespan을 재현: startup→start_scheduler, shutdown→stop_scheduler."""
 
@@ -71,7 +76,7 @@ async def test_tick_processes_pending(monkeypatch):
     monkeypatch.setattr(scheduler.runner, "research_company", research_company)
     monkeypatch.setattr(scheduler.runner, "research_job", research_job)
 
-    await scheduler.tick(lambda: object())
+    await scheduler.tick(lambda: _FakeDb())
     assert calls == [("company", "토스"), ("job", "wanted", "42")]
 
 
@@ -96,5 +101,30 @@ async def test_tick_threads_activity(monkeypatch):
     monkeypatch.setattr(scheduler.runner, "research_job", research_job)
 
     sentinel = object()
-    await scheduler.tick(lambda: object(), lambda: sentinel)
+    await scheduler.tick(lambda: _FakeDb(), lambda: sentinel)
     assert seen == [("company", sentinel), ("job", sentinel)]
+
+
+async def test_tick_threads_settings(monkeypatch):
+    seen = []
+
+    async def pending_companies(db, limit):
+        return ["토스"]
+
+    async def pending_jobs(db, limit):
+        return [("wanted", "42")]
+
+    async def research_company(db, company, **kw):
+        seen.append(kw.get("settings"))
+
+    async def research_job(db, source, job_id, **kw):
+        seen.append(kw.get("settings"))
+
+    monkeypatch.setattr(scheduler.store, "pending_companies", pending_companies)
+    monkeypatch.setattr(scheduler.store, "pending_jobs", pending_jobs)
+    monkeypatch.setattr(scheduler.runner, "research_company", research_company)
+    monkeypatch.setattr(scheduler.runner, "research_job", research_job)
+
+    await scheduler.tick(lambda: _FakeDb())
+    assert len(seen) == 2
+    assert all(s is not None and s.research_model == "" for s in seen)

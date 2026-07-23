@@ -4,22 +4,26 @@ from pydantic import BaseModel
 from app.db import get_conn  # Plan ② 제공 (계약 1번; 테스트 dependency_overrides 대상)
 from app.research import runner, store
 from app.run_log import logged_pool_run
+from app.settings_repo import get_settings
 
 router = APIRouter(prefix="/api/research", tags=["research"])
 
 
-async def _logged_company(pool, company: str, *, force: bool, activity) -> None:
+async def _logged_company(pool, company: str, *, settings, force: bool, activity) -> None:
     await logged_pool_run(
         pool, pipeline="research", trigger="manual", ref=company, label=company,
-        run=lambda: runner.research_company(pool, company, "", force=force, activity=activity),
+        run=lambda: runner.research_company(pool, company, "", settings=settings,
+                                            force=force, activity=activity),
     )
 
 
-async def _logged_job(pool, source: str, job_id: str, *, label: str, force: bool, activity) -> None:
+async def _logged_job(pool, source: str, job_id: str, *, label: str, settings,
+                      force: bool, activity) -> None:
     await logged_pool_run(
         pool, pipeline="research", trigger="manual",
         ref=f"{source}:{job_id}", label=label,
-        run=lambda: runner.research_job(pool, source, job_id, force=force, activity=activity),
+        run=lambda: runner.research_job(pool, source, job_id, settings=settings,
+                                        force=force, activity=activity),
     )
 
 
@@ -40,10 +44,13 @@ async def trigger_company(
 ):
     # 계약 7번: 202 전 running upsert → 폴링이 즉시 running을 봄.
     await store.mark_company_running(conn, req.company)
+    # 응답 전에 읽어 평범한 객체로 넘긴다 — BackgroundTask 안에서 조회하면
+    # 몇 분짜리 리서치 내내 커넥션을 붙들어 풀(max_size=10)이 마른다.
+    settings = await get_settings(conn)
     # BackgroundTask에는 요청 스코프 conn(응답 후 반납됨) 대신 풀을 넘겨 러너가 자체 acquire.
     bg.add_task(
         _logged_company, request.app.state.db, req.company,
-        force=req.force, activity=request.app.state.activity,
+        settings=settings, force=req.force, activity=request.app.state.activity,
     )
     return {"status": "running", "company": req.company}
 
@@ -58,9 +65,12 @@ async def trigger_job(
     # 계약 7번: 202 전 running upsert.
     await store.mark_job_running(conn, req.source, req.job_id, meta["company"])
     label = meta.get("title") or meta.get("company") or f"{req.source}:{req.job_id}"
+    # 응답 전에 읽어 평범한 객체로 넘긴다 — BackgroundTask 안에서 조회하면
+    # 몇 분짜리 리서치 내내 커넥션을 붙들어 풀(max_size=10)이 마른다.
+    settings = await get_settings(conn)
     bg.add_task(
         _logged_job, request.app.state.db, req.source, req.job_id,
-        label=label, force=req.force, activity=request.app.state.activity,
+        label=label, settings=settings, force=req.force, activity=request.app.state.activity,
     )
     return {"status": "running", "source": req.source, "job_id": req.job_id}
 

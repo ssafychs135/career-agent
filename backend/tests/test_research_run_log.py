@@ -29,11 +29,11 @@ async def test_logged_company_writes_run_log(monkeypatch):
     conn = FakeConn()
     pool = FakePool(conn)
 
-    async def fake_research_company(db, company, url="", *, force=False, activity=None):
+    async def fake_research_company(db, company, url="", *, settings=None, force=False, activity=None):
         return "done"
     monkeypatch.setattr(research_router.runner, "research_company", fake_research_company)
 
-    await research_router._logged_company(pool, "미스릴", force=False, activity=None)
+    await research_router._logged_company(pool, "미스릴", settings=None, force=False, activity=None)
 
     inserts = [a for (sql, a) in conn.executed if "INSERT INTO run_log" in sql]
     assert inserts, "run_log INSERT가 실행되어야 함"
@@ -48,12 +48,12 @@ async def test_logged_job_writes_run_log(monkeypatch):
     conn = FakeConn()
     pool = FakePool(conn)
 
-    async def fake_research_job(db, source, job_id, *, force=False, activity=None):
+    async def fake_research_job(db, source, job_id, *, settings=None, force=False, activity=None):
         return "cached"
     monkeypatch.setattr(research_router.runner, "research_job", fake_research_job)
 
     await research_router._logged_job(
-        pool, "wanted", "123", label="백엔드 개발자", force=False, activity=None,
+        pool, "wanted", "123", label="백엔드 개발자", settings=None, force=False, activity=None,
     )
     inserts = [a for (sql, a) in conn.executed if "INSERT INTO run_log" in sql]
     args = inserts[0]
