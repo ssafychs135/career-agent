@@ -6,10 +6,31 @@ from app.activity import Activity
 from app.routers import research
 
 
+class _FakePoolConn:
+    """로그인 테스트용 fake conn."""
+    async def execute(self, sql, *args):
+        pass
+
+
+class _FakePool:
+    """로그인 테스트용 fake pool with acquire()."""
+    def __init__(self):
+        self._conn = _FakePoolConn()
+
+    def acquire(self):
+        conn = self._conn
+        class _Ctx:
+            async def __aenter__(self):
+                return conn
+            async def __aexit__(self, *a):
+                return False
+        return _Ctx()
+
+
 def make_app(monkeypatch):
     """research 라우터가 붙고 get_conn·app.state.db가 갖춰진 테스트 앱."""
     app = FastAPI()
-    app.state.db = object()  # BackgroundTask로 넘길 풀 자리(러너는 fake라 실사용 안 함)
+    app.state.db = _FakePool()  # BackgroundTask로 넘길 풀 자리(러너는 fake라 실사용 안 함)
     app.state.activity = Activity()  # 라우터가 러너로 넘길 activity
     research.init_research(app)
     # 계약 1번 정본 의존성 이름 = get_conn. request 스코프 conn 오버라이드.

@@ -4,6 +4,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.collect.collector import collect
 from app.collect.worker import worker_tick
+from app.run_log import logged_run
 from app.settings_repo import get_settings
 
 log = logging.getLogger("collect.scheduler")
@@ -15,11 +16,12 @@ async def collector_job(get_ctx) -> None:
         settings = await get_settings(conn)
         if not settings.enabled:
             return
-        try:
-            await collect(conn, settings, http=http,
-                          on_stage=lambda st, d, p: activity.set_stage("collector", st, d, str(p)))
-        finally:
-            activity.clear("collector")
+        await logged_run(
+            conn, pipeline="collector", trigger="scheduled",
+            clear=lambda: activity.clear("collector"),
+            run=lambda: collect(conn, settings, http=http,
+                                on_stage=lambda st, d, p: activity.set_stage("collector", st, d, str(p))),
+        )
 
 
 async def worker_job(get_ctx) -> None:
@@ -28,11 +30,12 @@ async def worker_job(get_ctx) -> None:
         settings = await get_settings(conn)
         if not settings.enabled:
             return
-        try:
-            await worker_tick(conn, settings, http=http,
-                              on_stage=lambda st, d, p: activity.set_stage("worker", st, d, str(p)))
-        finally:
-            activity.clear("worker")
+        await logged_run(
+            conn, pipeline="worker", trigger="scheduled",
+            clear=lambda: activity.clear("worker"),
+            run=lambda: worker_tick(conn, settings, http=http,
+                                    on_stage=lambda st, d, p: activity.set_stage("worker", st, d, str(p))),
+        )
 
 
 def start_collect_scheduler(app) -> None:

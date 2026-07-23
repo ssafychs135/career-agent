@@ -5,7 +5,12 @@ from app.routers import collect as collect_router
 from app.settings_repo import Settings, SETTINGS_DEFAULTS
 
 
-class Conn: pass
+class Conn:
+    def __init__(self):
+        self.executed = []
+
+    async def execute(self, sql, *args):
+        self.executed.append((sql, args))
 
 
 def _app(monkeypatch, run_result, worker_result):
@@ -14,9 +19,11 @@ def _app(monkeypatch, run_result, worker_result):
     app.state.activity = Activity()
     app.include_router(collect_router.router)
 
+    conn = Conn()
     async def _get_conn():
-        yield Conn()
+        yield conn
     app.dependency_overrides[collect_router.get_conn] = _get_conn
+    app.state._test_conn = conn  # 테스트에서 run_log insert 검사용
 
     async def fake_get_settings(conn):
         return Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"]))
@@ -80,3 +87,13 @@ async def test_manual_worker_reflects_progress_in_activity(monkeypatch):
     assert r.status_code == 202
     assert mid["snap"]["worker"] == {"stage": "요약 중", "detail": "토스", "progress": "1/1"}
     assert app.state.activity.snapshot()["worker"] is None
+
+
+async def test_manual_collect_writes_run_log(monkeypatch):
+    app = _app(monkeypatch, {"scraped": 5, "inserted": 5}, {})
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
+        await c.post("/api/collect/run")
+    inserts = [a for (sql, a) in app.state._test_conn.executed if "INSERT INTO run_log" in sql]
+    assert inserts, "run_log INSERT가 실행되어야 함"
+    args = inserts[0]
+    assert args[0] == "collector" and args[3] == "manual" and args[4] == "ok"

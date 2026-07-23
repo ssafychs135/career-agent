@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { getHealth, getClaudeCheck } from "../api";
 import { getStatus, type StatusResponse } from "../statusApi";
@@ -8,6 +8,8 @@ import {
 import ChipInput from "../components/ChipInput";
 import Segmented from "../components/Segmented";
 import { SPRING_UI, stagger } from "../design/springs";
+import { getRuns, type RunLogItem } from "../runsApi";
+import { pipelineLabel, triggerLabel, statusClass, runSummary, durationLabel, relativeTime } from "../runsFormat";
 
 const POLL_MS = 3000;
 
@@ -44,8 +46,12 @@ export default function Ops() {
   // ── 헬스 프로브(1회) ──
   const [api, setApi] = useState<Probe>({ value: "…", state: "loading" });
   const [claude, setClaude] = useState<Probe>({ value: "…", state: "loading" });
+  const [runs, setRuns] = useState<RunLogItem[]>([]);
+  const refreshRuns = () => getRuns(30).then((r) => setRuns(r.items)).catch(() => { /* keep last */ });
 
   useEffect(() => { getSettings().then((s) => { setForm(s); setSaved(s); }); }, []);
+
+  useEffect(() => { refreshRuns(); }, []);
 
   useEffect(() => {
     let alive = true;
@@ -74,7 +80,7 @@ export default function Ops() {
     setBusy(true); setRunMsg("실행 중…");
     try { setRunMsg(format(await fn())); }
     catch { setRunMsg("실패 · 다시 시도하세요"); }
-    finally { setBusy(false); }
+    finally { setBusy(false); refreshRuns(); }
   }
 
   const card = (i: number, extra = "") => ({
@@ -86,6 +92,12 @@ export default function Ops() {
 
   const col = status?.activity.collector ?? null;
   const wrk = status?.activity.worker ?? null;
+  const active = !!col || !!wrk;
+  const prevActive = useRef(false);
+  useEffect(() => {
+    if (prevActive.current && !active) refreshRuns();
+    prevActive.current = active;
+  }, [active]);
 
   return (
     <main className="page">
@@ -207,6 +219,26 @@ export default function Ops() {
               <input className="control" aria-label="Discord 웹훅" type="text" placeholder="https://discord.com/api/webhooks/…"
                 value={form.discord_webhook_url} onChange={(e) => set("discord_webhook_url", e.target.value)} />
             </label>
+          </motion.section>
+
+          <motion.section {...card(5, "span-2")}>
+            <div className="card-h">실행 로그</div>
+            {runs.length === 0 ? (
+              <p className="caption" style={{ margin: 0 }}>아직 기록된 실행이 없습니다.</p>
+            ) : (
+              <ul className="run-log">
+                {runs.map((it) => (
+                  <li key={it.id} className="run-row">
+                    <span className={`rdot ${statusClass(it.status)}`} />
+                    <span className="rpipe">{pipelineLabel(it.pipeline)}</span>
+                    <span className="pill rtrig">{triggerLabel(it.trigger)}</span>
+                    <span className="rsum">{runSummary(it)}</span>
+                    <span className="rdur">{durationLabel(it.duration_ms)}</span>
+                    <span className="rtime">{relativeTime(it.finished_at, Date.now())}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </motion.section>
           </>
         )}

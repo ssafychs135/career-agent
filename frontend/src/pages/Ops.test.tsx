@@ -24,6 +24,13 @@ function mockFetch(statusOverride?: unknown) {
     else if (u.includes("/api/status")) body = statusOverride ?? STATUS;
     else if (u.includes("/api/collect/run")) body = { scraped: 1, inserted: 1 };
     else if (u.includes("/api/collect/worker/run")) body = { claimed: 0, done: 0, failed: 0, skipped_tick: false };
+    else if (u.includes("/api/runs")) body = {
+      items: [
+        { id: 2, pipeline: "collector", ref: "", label: "", trigger: "scheduled",
+          status: "ok", result: { scraped: 43, inserted: 43 }, error: "",
+          started_at: "2026-07-23T09:00:00Z", finished_at: "2026-07-23T09:00:03Z", duration_ms: 3000 },
+      ],
+    };
     else if (u.includes("/api/settings")) {
       if (init?.method === "PUT") { putBody = JSON.parse(init.body as string); body = putBody; }
       else body = SETTINGS;
@@ -68,4 +75,24 @@ test("idle pipeline shows idle rows", async () => {
   global.fetch = mockFetch({ ...STATUS, activity: { collector: null, worker: null, research: [] } }) as unknown as typeof fetch;
   render(<Ops />);
   await waitFor(() => expect(screen.getAllByText(/idle/i).length).toBeGreaterThan(0));
+});
+
+test("실행 로그 카드가 최근 실행을 렌더한다", async () => {
+  render(<Ops />);
+  await waitFor(() => expect(screen.getByText("실행 로그")).toBeTruthy());
+  expect(screen.getByText("스크레이핑 43·적재 43")).toBeTruthy();
+  expect(screen.getByText("자동")).toBeTruthy();
+});
+
+test("수동 수집 후 실행 로그를 재조회한다", async () => {
+  const fetchSpy = vi.fn(mockFetch());
+  global.fetch = fetchSpy as unknown as typeof fetch;
+  render(<Ops />);
+  await waitFor(() => expect(screen.getByText("실행 로그")).toBeTruthy());
+  const before = fetchSpy.mock.calls.filter(([u]) => String(u).includes("/api/runs")).length;
+  fireEvent.click(screen.getByText("지금 수집"));
+  await waitFor(() => {
+    const after = fetchSpy.mock.calls.filter(([u]) => String(u).includes("/api/runs")).length;
+    expect(after).toBeGreaterThan(before);
+  });
 });

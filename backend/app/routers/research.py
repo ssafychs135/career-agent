@@ -3,8 +3,24 @@ from pydantic import BaseModel
 
 from app.db import get_conn  # Plan ② 제공 (계약 1번; 테스트 dependency_overrides 대상)
 from app.research import runner, store
+from app.run_log import logged_pool_run
 
 router = APIRouter(prefix="/api/research", tags=["research"])
+
+
+async def _logged_company(pool, company: str, *, force: bool, activity) -> None:
+    await logged_pool_run(
+        pool, pipeline="research", trigger="manual", ref=company, label=company,
+        run=lambda: runner.research_company(pool, company, "", force=force, activity=activity),
+    )
+
+
+async def _logged_job(pool, source: str, job_id: str, *, label: str, force: bool, activity) -> None:
+    await logged_pool_run(
+        pool, pipeline="research", trigger="manual",
+        ref=f"{source}:{job_id}", label=label,
+        run=lambda: runner.research_job(pool, source, job_id, force=force, activity=activity),
+    )
 
 
 class CompanyReq(BaseModel):
@@ -26,8 +42,8 @@ async def trigger_company(
     await store.mark_company_running(conn, req.company)
     # BackgroundTask에는 요청 스코프 conn(응답 후 반납됨) 대신 풀을 넘겨 러너가 자체 acquire.
     bg.add_task(
-        runner.research_company, request.app.state.db, req.company, "", force=req.force,
-        activity=request.app.state.activity,
+        _logged_company, request.app.state.db, req.company,
+        force=req.force, activity=request.app.state.activity,
     )
     return {"status": "running", "company": req.company}
 
@@ -41,9 +57,10 @@ async def trigger_job(
         raise HTTPException(status_code=404, detail="job not found")
     # 계약 7번: 202 전 running upsert.
     await store.mark_job_running(conn, req.source, req.job_id, meta["company"])
+    label = meta.get("title") or meta.get("company") or f"{req.source}:{req.job_id}"
     bg.add_task(
-        runner.research_job, request.app.state.db, req.source, req.job_id, force=req.force,
-        activity=request.app.state.activity,
+        _logged_job, request.app.state.db, req.source, req.job_id,
+        label=label, force=req.force, activity=request.app.state.activity,
     )
     return {"status": "running", "source": req.source, "job_id": req.job_id}
 
