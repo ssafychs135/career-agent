@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { vi, test, expect, beforeEach, afterEach } from "vitest";
 import Ops from "./Ops";
 
@@ -112,5 +112,6 @@ test("지금 알림 발송 결과를 문구로 보여준다", async () => {
   render(<Ops />);
   await waitFor(() => expect(screen.getByText("지금 알림 발송")).toBeTruthy());
   fireEvent.click(screen.getByText("지금 알림 발송"));
-  await waitFor(() => expect(screen.getByText(/발송 2건/)).toBeTruthy());
+  const section = screen.getByLabelText("알림 활성화").closest("section") as HTMLElement;
+  await waitFor(() => expect(within(section).getByText(/발송 2건/)).toBeTruthy());
 });

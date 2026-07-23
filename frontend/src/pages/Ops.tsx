@@ -41,6 +41,7 @@ export default function Ops() {
   const [saved, setSaved] = useState<S | null>(null);
   const [busy, setBusy] = useState(false);
   const [runMsg, setRunMsg] = useState("");
+  const [notifyMsg, setNotifyMsg] = useState("");
   // ── 상태(폴링) ──
   const [status, setStatus] = useState<StatusResponse | null>(null);
   // ── 헬스 프로브(1회) ──
@@ -76,10 +77,10 @@ export default function Ops() {
     try { const r = await putSettings(form); setForm(r); setSaved(r); }
     finally { setBusy(false); }
   }
-  async function doRun<T>(fn: () => Promise<T>, format: (r: T) => string) {
-    setBusy(true); setRunMsg("실행 중…");
-    try { setRunMsg(format(await fn())); }
-    catch { setRunMsg("실패 · 다시 시도하세요"); }
+  async function doRun<T>(fn: () => Promise<T>, format: (r: T) => string, setMsg: (s: string) => void = setRunMsg) {
+    setBusy(true); setMsg("실행 중…");
+    try { setMsg(format(await fn())); }
+    catch { setMsg("실패 · 다시 시도하세요"); }
     finally { setBusy(false); refreshRuns(); }
   }
 
@@ -228,10 +229,10 @@ export default function Ops() {
             </div>
             <div className="run-bar">
               <button
-                onClick={() => doRun(runNotify, (r) => `발송 ${r.sent}건${r.skipped ? ` · 건너뜀 ${r.skipped}` : ""}`)}
+                onClick={() => doRun(runNotify, (r) => `발송 ${r.sent}건${r.skipped ? ` · 건너뜀 ${r.skipped}` : ""}`, setNotifyMsg)}
                 disabled={dirty || busy}
               >지금 알림 발송</button>
-              <span className="caption">{dirty ? "먼저 저장하세요" : ""}</span>
+              <span className="caption">{dirty ? "먼저 저장하세요" : notifyMsg}</span>
             </div>
           </motion.section>
 
