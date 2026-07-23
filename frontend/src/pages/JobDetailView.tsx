@@ -14,6 +14,7 @@ type ApiResearch = {
   role_detail?: string | null;
   status?: string | null;
   sources?: unknown;
+  model?: string | null;
 };
 
 // 수집 출처(source) → 사람이 읽는 사이트명.
@@ -38,6 +39,7 @@ function adaptResearch(r: ApiResearch | null) {
     role_detail: r.role_detail ?? undefined,
     status: r.status ?? undefined,
     sources: Array.isArray(r.sources) ? (r.sources as string[]) : undefined,
+    model: r.model ?? undefined,
   };
 }
 

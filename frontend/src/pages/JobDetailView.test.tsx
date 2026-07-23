@@ -46,3 +46,33 @@ test("shows error when job missing", async () => {
   render(<JobDetailView source="x" jobId="y" />);
   await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
 });
+
+const BASE_JOB = {
+  source: "saramin", job_id: "1", company: "Acme", title: "백엔드 개발자",
+  url: "http://x", locations: "서울", min_career: 0, max_career: 3,
+  tech_stacks: ["python"], summary: "요약", status: "open", attempts: 0,
+  collected_at: "2026-07-20", updated_at: null, closed_at: null,
+};
+
+test("리서치 완료 시 사용 모델 칩을 보여준다", async () => {
+  (getJob as Mock).mockResolvedValue({
+    job: BASE_JOB,
+    companyResearch: { status: "done", overview: "안정적", stability: null, sources: null, researched_at: null },
+    jobResearch: { status: "done", tech_detail: "t", role_detail: "r", sources: null, researched_at: null, model: "opus" },
+  });
+  render(<JobDetailView source="saramin" jobId="1" />);
+  // 이 프로젝트에는 @testing-library/jest-dom이 없다 — toBeInTheDocument/
+  // toHaveTextContent 대신 .textContent를 비교한다(기존 테스트와 동일).
+  expect((await screen.findByTestId("research-model")).textContent).toBe("opus");
+});
+
+test("모델이 비어 있으면 칩을 그리지 않는다", async () => {
+  (getJob as Mock).mockResolvedValue({
+    job: BASE_JOB,
+    companyResearch: { status: "done", overview: "안정적", stability: null, sources: null, researched_at: null },
+    jobResearch: { status: "done", tech_detail: "t", role_detail: "r", sources: null, researched_at: null, model: "" },
+  });
+  render(<JobDetailView source="saramin" jobId="1" />);
+  await waitFor(() => expect(screen.getByTestId("job-title").textContent).toBe("백엔드 개발자"));
+  expect(screen.queryByTestId("research-model")).toBeNull();
+});
