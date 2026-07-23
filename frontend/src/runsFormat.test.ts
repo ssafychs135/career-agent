@@ -54,6 +54,24 @@ test("research summary variants", () => {
     .toBe("미스릴 · 실패");
 });
 
+test("worker 요약에 승급 건수를 덧붙인다", () => {
+  expect(runSummary(item({
+    pipeline: "worker", result: { claimed: 5, done: 5, failed: 0, escalated: 2 },
+  }))).toBe("요약 5건·승급 2");
+});
+
+test("승급이 없으면 기존 문구 그대로", () => {
+  expect(runSummary(item({
+    pipeline: "worker", result: { claimed: 5, done: 5, failed: 0, escalated: 0 },
+  }))).toBe("요약 5건");
+});
+
+test("escalated 키가 없는 옛 기록도 깨지지 않는다", () => {
+  expect(runSummary(item({
+    pipeline: "worker", result: { claimed: 5, done: 5, failed: 1 },
+  }))).toBe("요약 5건·실패 1");
+});
+
 test("duration and relative time", () => {
   expect(durationLabel(850)).toBe("850ms");
   expect(durationLabel(1500)).toBe("1.5s");

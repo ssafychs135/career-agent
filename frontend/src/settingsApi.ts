@@ -14,6 +14,8 @@ export interface Settings {
   allowed_regions: string[];
   hidden_companies: string[];
   notify_enabled: boolean;
+  summary_model: string;
+  research_model: string;
   updated_at?: string;
 }
 

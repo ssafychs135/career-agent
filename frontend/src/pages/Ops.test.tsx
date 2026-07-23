@@ -8,6 +8,7 @@ const SETTINGS = {
   summary_backend: "local", max_attempts: 5, worker_interval_min: 5,
   enabled: false, discord_webhook_url: "",
   notify_enabled: false,
+  summary_model: "", research_model: "",
 };
 const STATUS = {
   activity: { collector: null, worker: { stage: "요약 중", detail: "토스 · 백엔드", progress: "4/20" }, research: [] },
@@ -114,4 +115,15 @@ test("지금 알림 발송 결과를 문구로 보여준다", async () => {
   fireEvent.click(screen.getByText("지금 알림 발송"));
   const section = screen.getByLabelText("알림 활성화").closest("section") as HTMLElement;
   await waitFor(() => expect(within(section).getByText(/발송 2건/)).toBeTruthy());
+});
+
+test("요약·리서치 모델을 선택해 저장한다", async () => {
+  render(<Ops />);
+  const summary = await screen.findByLabelText("요약 모델");
+  fireEvent.change(summary, { target: { value: "sonnet" } });
+  fireEvent.change(screen.getByLabelText("리서치 모델"), { target: { value: "opus" } });
+  fireEvent.click(screen.getByRole("button", { name: "저장" }));
+  await waitFor(() => expect(putBody).not.toBeNull());
+  expect(putBody!.summary_model).toBe("sonnet");
+  expect(putBody!.research_model).toBe("opus");
 });
