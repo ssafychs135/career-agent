@@ -11,6 +11,7 @@ from app.routers import collect as collect_router
 from app.routers import db as db_router
 from app.routers import facets as facets_router
 from app.routers import jobs as jobs_router
+from app.routers import notify as notify_router
 from app.routers import runs as runs_router
 from app.routers import settings as settings_router
 from app.routers import status as status_router
@@ -58,6 +59,7 @@ app.include_router(settings_router.router)
 app.include_router(status_router.router)
 app.include_router(runs_router.router)
 app.include_router(facets_router.router)
+app.include_router(notify_router.router)
 
 
 @app.get("/api/health")
