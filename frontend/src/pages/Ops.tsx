@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import { getHealth, getClaudeCheck } from "../api";
 import { getStatus, type StatusResponse } from "../statusApi";
 import {
-  getSettings, putSettings, runCollect, runWorker, type Settings as S,
+  getSettings, putSettings, runCollect, runNotify, runWorker, type Settings as S,
 } from "../settingsApi";
 import ChipInput from "../components/ChipInput";
 import Segmented from "../components/Segmented";
@@ -219,6 +219,20 @@ export default function Ops() {
               <input className="control" aria-label="Discord 웹훅" type="text" placeholder="https://discord.com/api/webhooks/…"
                 value={form.discord_webhook_url} onChange={(e) => set("discord_webhook_url", e.target.value)} />
             </label>
+            <div className="form-row">
+              <span className="rl">알림 활성화</span>
+              <div className="control">
+                <input className="switch" type="checkbox" aria-label="알림 활성화"
+                  checked={form.notify_enabled} onChange={(e) => set("notify_enabled", e.target.checked)} />
+              </div>
+            </div>
+            <div className="run-bar">
+              <button
+                onClick={() => doRun(runNotify, (r) => `발송 ${r.sent}건${r.skipped ? ` · 건너뜀 ${r.skipped}` : ""}`)}
+                disabled={dirty || busy}
+              >지금 알림 발송</button>
+              <span className="caption">{dirty ? "먼저 저장하세요" : ""}</span>
+            </div>
           </motion.section>
 
           <motion.section {...card(5, "span-2")}>
