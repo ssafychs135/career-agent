@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.db import get_conn
 from app.jobs_repo import get_job, list_jobs
+from app.settings_repo import get_settings
 
 router = APIRouter(prefix="/api", tags=["jobs"])
 
@@ -19,6 +20,8 @@ async def get_jobs(
     offset: int = Query(0, ge=0),
     conn: Any = Depends(get_conn),
 ):
+    # 전역 필터(설정)를 목록에만 적용 — 상세 조회는 영향받지 않는다.
+    s = await get_settings(conn)
     return await list_jobs(
         conn,
         status=status,
@@ -26,6 +29,8 @@ async def get_jobs(
         location=location,
         tech=tech,
         keyword=keyword,
+        allowed_regions=s.allowed_regions,
+        hidden_companies=s.hidden_companies,
         limit=limit,
         offset=offset,
     )

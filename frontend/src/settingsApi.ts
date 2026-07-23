@@ -11,6 +11,8 @@ export interface Settings {
   worker_interval_min: number;
   enabled: boolean;
   discord_webhook_url: string;
+  allowed_regions: string[];
+  hidden_companies: string[];
   updated_at?: string;
 }
 
