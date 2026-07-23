@@ -20,6 +20,7 @@ beforeEach(() => {
     const body = u.includes("claude-check") ? { ok: true, reply: "OK" }
       : u.includes("/api/status") ? STATUS
       : u.includes("/api/settings") ? SETTINGS
+      : u.includes("/api/runs") ? { items: [] }
       : { status: "ok" };
     return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
   }) as unknown as typeof fetch;
