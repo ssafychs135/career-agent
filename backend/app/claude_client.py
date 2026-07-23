@@ -24,6 +24,7 @@ def stream_label(event: dict) -> str | None:
 async def run_claude(
     prompt: str,
     *,
+    model: str = "",
     allowed_tools: str = "",
     timeout: int = 120,
     claude_bin: str = "claude",
@@ -31,6 +32,8 @@ async def run_claude(
 ) -> str:
     """`claude -p`를 stream-json으로 실행. 이벤트마다 on_step(label) 호출, 최종 result 반환."""
     args = [claude_bin, "-p", prompt, "--output-format", "stream-json", "--verbose"]
+    if model:
+        args += ["--model", model]
     if allowed_tools:
         args += ["--allowedTools", allowed_tools]
 

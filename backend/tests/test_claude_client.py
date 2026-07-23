@@ -77,3 +77,43 @@ async def test_run_claude_raises_when_no_result(monkeypatch):
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
     with pytest.raises(RuntimeError):
         await run_claude("hi")
+
+
+async def test_run_claude_omits_model_flag_when_unset(monkeypatch):
+    """model=""이면 명령줄이 현재와 동일해야 한다 — 기존 호출자 무손상."""
+    seen = {}
+
+    async def fake_exec(*args, **kwargs):
+        seen["args"] = list(args)
+        return FakeProc(_lines({"type": "result", "result": "ok"}))
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    assert await run_claude("hi") == "ok"
+    assert "--model" not in seen["args"]
+
+
+async def test_run_claude_passes_model_flag(monkeypatch):
+    seen = {}
+
+    async def fake_exec(*args, **kwargs):
+        seen["args"] = list(args)
+        return FakeProc(_lines({"type": "result", "result": "ok"}))
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    assert await run_claude("hi", model="haiku") == "ok"
+    args = seen["args"]
+    assert args[args.index("--model") + 1] == "haiku"
+
+
+async def test_run_claude_keeps_allowed_tools_alongside_model(monkeypatch):
+    seen = {}
+
+    async def fake_exec(*args, **kwargs):
+        seen["args"] = list(args)
+        return FakeProc(_lines({"type": "result", "result": "ok"}))
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    await run_claude("hi", model="opus", allowed_tools="WebSearch")
+    args = seen["args"]
+    assert args[args.index("--model") + 1] == "opus"
+    assert args[args.index("--allowedTools") + 1] == "WebSearch"
