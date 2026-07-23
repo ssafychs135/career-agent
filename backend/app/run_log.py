@@ -53,3 +53,44 @@ async def logged_run(conn, *, pipeline: str, trigger: str, ref: str = "", label:
         raise
     finally:
         clear()
+
+
+_SELECT = (
+    "SELECT id, pipeline, ref, label, trigger, status, result, error, "
+    "started_at, finished_at, duration_ms FROM run_log"
+)
+
+
+def build_runs_query(*, pipeline: str | None = None, status: str | None = None,
+                     limit: int = 30) -> tuple[str, list]:
+    where: list[str] = []
+    params: list = []
+    if pipeline:
+        params.append(pipeline)
+        where.append(f"pipeline = ${len(params)}")
+    if status:
+        params.append(status)
+        where.append(f"status = ${len(params)}")
+    clause = (" WHERE " + " AND ".join(where)) if where else ""
+    params.append(limit)
+    sql = f"{_SELECT}{clause} ORDER BY finished_at DESC LIMIT ${len(params)}"
+    return sql, params
+
+
+def _row_to_item(row) -> dict:
+    d = dict(row)
+    res = d.get("result")
+    if isinstance(res, str):
+        d["result"] = json.loads(res)
+    for k in ("started_at", "finished_at"):
+        v = d.get(k)
+        if v is not None:
+            d[k] = v.isoformat()
+    return d
+
+
+async def list_runs(conn, *, pipeline: str | None = None, status: str | None = None,
+                    limit: int = 30) -> dict:
+    sql, params = build_runs_query(pipeline=pipeline, status=status, limit=limit)
+    rows = await conn.fetch(sql, *params)
+    return {"items": [_row_to_item(r) for r in rows]}
