@@ -35,22 +35,54 @@ async def record(conn, *, pipeline: str, ref: str, label: str, trigger: str,
     await conn.execute(_PRUNE)
 
 
+async def _finish(conn, *, pipeline, trigger, ref, label, status, result, error, started):
+    await record(conn, pipeline=pipeline, ref=ref, label=label, trigger=trigger,
+                 status=status, result=result, error=error, started=started)
+    if status == "failed" and trigger == "scheduled":
+        first = error.splitlines()[0][:200] if error else ""
+        await push(f"⚠️ 스케줄 {_KO.get(pipeline, pipeline)} 실패 · {first}")
+
+
 async def logged_run(conn, *, pipeline: str, trigger: str, ref: str = "", label: str = "",
                      clear: Callable[[], None] = lambda: None,
                      run: Callable[[], Any]) -> Any:
     started = datetime.now(timezone.utc)
     try:
-        result = await run()
-        await record(conn, pipeline=pipeline, ref=ref, label=label, trigger=trigger,
-                     status=classify(pipeline, result), result=result, error="", started=started)
+        try:
+            result = await run()
+        except Exception as e:  # noqa: BLE001 — 실패도 기록 후 재-raise
+            await _finish(conn, pipeline=pipeline, trigger=trigger, ref=ref, label=label,
+                          status="failed", result={}, error=str(e), started=started)
+            raise
+        # 성공 기록은 run의 except 밖 — 기록/prune 오류가 '실행 실패'로 오분류되지 않도록.
+        await _finish(conn, pipeline=pipeline, trigger=trigger, ref=ref, label=label,
+                      status=classify(pipeline, result), result=result, error="", started=started)
         return result
-    except Exception as e:  # noqa: BLE001 — 실패도 기록 후 재-raise
-        await record(conn, pipeline=pipeline, ref=ref, label=label, trigger=trigger,
-                     status="failed", result={}, error=str(e), started=started)
-        if trigger == "scheduled":
-            first = str(e).splitlines()[0][:200] if str(e) else ""
-            await push(f"⚠️ 스케줄 {_KO.get(pipeline, pipeline)} 실패 · {first}")
-        raise
+    finally:
+        clear()
+
+
+async def logged_pool_run(pool, *, pipeline: str, trigger: str, ref: str = "", label: str = "",
+                          clear: Callable[[], None] = lambda: None,
+                          run: Callable[[], Any]) -> Any:
+    """research용: run() 동안 풀 커넥션을 잡지 않고 기록 시점에만 acquire.
+
+    러너가 풀을 직접 써 자체 커넥션을 취득하므로, 여기서 커넥션을 run 내내 붙들면
+    풀 고갈/교착이 발생한다(멀티분 Claude 호출). 기록 한 줄을 위해서만 짧게 acquire.
+    """
+    started = datetime.now(timezone.utc)
+    try:
+        try:
+            result = await run()
+        except Exception as e:  # noqa: BLE001
+            async with pool.acquire() as conn:
+                await _finish(conn, pipeline=pipeline, trigger=trigger, ref=ref, label=label,
+                              status="failed", result={}, error=str(e), started=started)
+            raise
+        async with pool.acquire() as conn:
+            await _finish(conn, pipeline=pipeline, trigger=trigger, ref=ref, label=label,
+                          status=classify(pipeline, result), result=result, error="", started=started)
+        return result
     finally:
         clear()
 

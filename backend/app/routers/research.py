@@ -3,26 +3,24 @@ from pydantic import BaseModel
 
 from app.db import get_conn  # Plan ② 제공 (계약 1번; 테스트 dependency_overrides 대상)
 from app.research import runner, store
-from app.run_log import logged_run
+from app.run_log import logged_pool_run
 
 router = APIRouter(prefix="/api/research", tags=["research"])
 
 
 async def _logged_company(pool, company: str, *, force: bool, activity) -> None:
-    async with pool.acquire() as conn:
-        await logged_run(
-            conn, pipeline="research", trigger="manual", ref=company, label=company,
-            run=lambda: runner.research_company(pool, company, "", force=force, activity=activity),
-        )
+    await logged_pool_run(
+        pool, pipeline="research", trigger="manual", ref=company, label=company,
+        run=lambda: runner.research_company(pool, company, "", force=force, activity=activity),
+    )
 
 
 async def _logged_job(pool, source: str, job_id: str, *, label: str, force: bool, activity) -> None:
-    async with pool.acquire() as conn:
-        await logged_run(
-            conn, pipeline="research", trigger="manual",
-            ref=f"{source}:{job_id}", label=label,
-            run=lambda: runner.research_job(pool, source, job_id, force=force, activity=activity),
-        )
+    await logged_pool_run(
+        pool, pipeline="research", trigger="manual",
+        ref=f"{source}:{job_id}", label=label,
+        run=lambda: runner.research_job(pool, source, job_id, force=force, activity=activity),
+    )
 
 
 class CompanyReq(BaseModel):

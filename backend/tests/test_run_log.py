@@ -84,3 +84,20 @@ async def test_manual_failure_does_not_push(monkeypatch):
     with pytest.raises(RuntimeError):
         await logged_run(conn, pipeline="collector", trigger="manual", run=boom)
     assert pushed == []
+
+
+async def test_success_with_record_error_is_not_misclassified(monkeypatch):
+    """run 성공 후 record()가 실패해도 '실행 실패'로 오분류/scheduled push 하지 않는다."""
+    pushed = []
+    async def fake_push(msg):
+        pushed.append(msg)
+    monkeypatch.setattr("app.run_log.push", fake_push)
+
+    class FailingRecordConn:
+        async def execute(self, sql, *args):
+            raise RuntimeError("db down")
+
+    with pytest.raises(RuntimeError, match="db down"):
+        await logged_run(FailingRecordConn(), pipeline="collector", trigger="scheduled",
+                         run=_run({"scraped": 1, "inserted": 1}))
+    assert pushed == []  # 성공 실행이므로 실패 알림 없음
