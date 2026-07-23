@@ -101,6 +101,7 @@ export default function JobDetailView({ source, jobId }: { source: string; jobId
       <ResearchPanel
         source={source}
         jobId={jobId}
+        company={job.company}
         companyResearch={adaptResearch(data.companyResearch)}
         jobResearch={adaptResearch(data.jobResearch)}
         refetch={async () => {
