@@ -13,7 +13,8 @@ INSERT_SQL = (
     "INSERT INTO jobs "
     "(source, job_id, company, title, url, min_career, max_career, tech_stacks, locations, closed_at) "
     "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) "
-    "ON CONFLICT (source, job_id) DO NOTHING"
+    "ON CONFLICT (source, job_id) DO NOTHING "
+    "RETURNING id"
 )
 
 
@@ -92,7 +93,12 @@ async def collect(conn, settings, *, http, on_stage=None) -> dict:
     rows = dedupe(await _scrape(settings, http, on_stage))
     if on_stage:
         on_stage("pending 적재", f"{len(rows)}건", len(rows))
-    if rows:
-        await conn.executemany(INSERT_SQL, [_row_params(r) for r in rows])
-    log.info("collect: scraped=%d inserted=%d", len(rows), len(rows))
-    return {"scraped": len(rows), "inserted": len(rows)}
+    # RETURNING id로 실제로 새로 들어간 행만 센다 — 중복은 ON CONFLICT로 건너뛰어
+    # None을 돌려준다. 행별 INSERT라 수동/스케줄 수집이 겹쳐도 경쟁 안전하다
+    # (executemany는 rowcount를 안 줘 스크레이핑 수를 삽입 수로 착각하게 했다).
+    inserted = 0
+    for r in rows:
+        if await conn.fetchval(INSERT_SQL, *_row_params(r)) is not None:
+            inserted += 1
+    log.info("collect: scraped=%d inserted=%d", len(rows), inserted)
+    return {"scraped": len(rows), "inserted": inserted}

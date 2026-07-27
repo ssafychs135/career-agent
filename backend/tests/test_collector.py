@@ -57,8 +57,18 @@ class FakeHttp:
 
 
 class FakeConn:
-    def __init__(self): self.executed = []
-    async def executemany(self, sql, args): self.executed.append((sql, args))
+    """실제 conn 대역: fetchval이 INSERT … ON CONFLICT DO NOTHING RETURNING id를 흉내낸다.
+    이미 있는 (source, job_id)는 None(중복→건너뜀), 새 키는 가짜 id(비-None)를 반환."""
+    def __init__(self, existing=()):
+        self.existing = set(existing)
+        self.inserts = []          # 실제로 새로 들어간 키
+    async def fetchval(self, sql, *args):
+        key = (args[0], args[1])   # $1 source, $2 job_id
+        if key in self.existing:
+            return None
+        self.existing.add(key)
+        self.inserts.append(key)
+        return len(self.inserts)   # 가짜 id
 
 
 async def test_collect_scrapes_and_inserts():
@@ -66,8 +76,16 @@ async def test_collect_scrapes_and_inserts():
     conn, http = FakeConn(), FakeHttp()
     result = await collect(conn, s, http=http)
     assert result == {"scraped": 2, "inserted": 2}
-    assert conn.executed[0][0] == INSERT_SQL
-    assert len(conn.executed[0][1]) == 2  # 2행 executemany
+    assert len(conn.inserts) == 2  # 2행 실제 삽입
+
+
+async def test_collect_counts_only_actually_inserted_rows():
+    # 긁은 2건 중 하나(점핏 job_id=1)는 이미 DB에 있음 → 중복은 세지 않는다.
+    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["백엔드"], max_pages=3))
+    conn = FakeConn(existing={("jumpit", "1")})
+    result = await collect(conn, s, http=FakeHttp())
+    assert result == {"scraped": 2, "inserted": 1}
+    assert conn.inserts == [("wanted", "10")]  # 신규만 삽입됨
 
 
 class FakeHttpMalformedJumpit:
