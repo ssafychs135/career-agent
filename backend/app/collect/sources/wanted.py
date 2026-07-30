@@ -30,7 +30,7 @@ def parse_wanted_results(payload: dict, cats, keywords, max_years) -> list[dict]
             "company": (p.get("company") or {}).get("name") or "", "title": title,
             "url": f"https://www.wanted.co.kr/wd/{p.get('id')}",
             "min_career": min_career, "max_career": max_career,
-            "tech_stacks": [_stack_name(t) for t in (p.get("skill_tags") or [])],
+            "tech_stacks": [n for n in (_stack_name(t) for t in (p.get("skill_tags") or [])) if n],
             "locations": loc, "closed_at": p.get("due_time"),
         })
     return out

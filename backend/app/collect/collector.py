@@ -58,12 +58,15 @@ async def _scrape(settings, http, on_stage) -> list[dict]:
             url = f"https://jumpit-api.saramin.co.kr/api/positions?keyword={quote(kw)}&sort=relation&page={page}"
             try:
                 payload = (await http.get(url, headers=_UA)).json()
-                parsed = parse_jumpit_positions(payload, settings.keywords, settings.max_career_years)
-            except Exception:  # noqa: BLE001 — 네트워크/파싱 실패 시 이 키워드 종료
+            except Exception:  # noqa: BLE001 — 네트워크/디코딩 실패 → 이 키워드 종료
                 break
-            if not (payload or {}).get("result", {}).get("positions"):
+            # 빈 페이지 검사는 try 밖이라 스스로 안전해야 한다(result가 None인 응답 실재).
+            if not isinstance(payload, dict) or not (payload.get("result") or {}).get("positions"):
                 break
-            rows.extend(parsed)
+            try:
+                rows.extend(parse_jumpit_positions(payload, settings.keywords, settings.max_career_years))
+            except Exception:  # noqa: BLE001 — 이 페이지만 건너뛰고 계속(아래 주석 참조)
+                log.warning("collect: 점핏 파싱 실패 kw=%s page=%d — 이 페이지 건너뜀", kw, page)
     # 원티드: 카테고리별 offset 페이지네이션
     for cat in settings.allowed_wanted_categories:
         for page in range(1, cap + 1):
@@ -77,15 +80,20 @@ async def _scrape(settings, http, on_stage) -> list[dict]:
                 req_url, hdr = wurl, _UA
             try:
                 payload = (await http.get(req_url, headers=hdr)).json()
-                parsed = parse_wanted_results(
+            except Exception:  # noqa: BLE001 — 네트워크/디코딩 실패 → 이 카테고리 종료
+                break
+            if not isinstance(payload, dict) or not payload.get("data"):
+                break
+            # 파싱 실패는 이 페이지만 버리고 계속한다. 예전엔 break였는데, 공고 한 건의
+            # 예상 못한 필드 형태가 카테고리 전체 페이지네이션을 끊어 뒤쪽 공고를
+            # 통째로 잃었다(원티드 518에서 139건 중 8건만 수집되던 원인).
+            try:
+                rows.extend(parse_wanted_results(
                     payload, settings.allowed_wanted_categories,
                     settings.keywords, settings.max_career_years,
-                )
-            except Exception:  # noqa: BLE001 — 네트워크/파싱 실패 시 이 카테고리 종료
-                break
-            if not (payload or {}).get("data"):
-                break
-            rows.extend(parsed)
+                ))
+            except Exception:  # noqa: BLE001
+                log.warning("collect: 원티드 파싱 실패 cat=%s page=%d — 이 페이지 건너뜀", cat, page)
     return rows
 
 

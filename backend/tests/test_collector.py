@@ -88,6 +88,49 @@ async def test_collect_counts_only_actually_inserted_rows():
     assert conn.inserts == [("wanted", "10")]  # 신규만 삽입됨
 
 
+class FakeHttpBadMiddlePage:
+    """점핏 1p 정상 · 2p는 파서를 죽이는 페이로드 · 3p 정상 · 4p 빈 페이지.
+    파싱 실패 한 번이 카테고리 전체 페이지네이션을 끊으면 3p를 잃는다."""
+    async def get(self, url, headers=None):
+        if "jumpit-api" in url:
+            if "page=1" in url:
+                return FakeResp({"result": {"positions": [
+                    {"id": 1, "title": "AI 엔지니어", "companyName": "A", "minCareer": 1}]}})
+            if "page=2" in url:
+                return FakeResp({"result": {"positions": ["문자열이라 .get()이 없음"]}})
+            if "page=3" in url:
+                return FakeResp({"result": {"positions": [
+                    {"id": 3, "title": "AI 리서처", "companyName": "C", "minCareer": 1}]}})
+        return FakeResp({"result": {"positions": []}, "data": []})  # 빈 페이지 → 종료
+
+
+async def test_collect_skips_unparsable_page_and_keeps_paginating():
+    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["AI"], max_pages=5))
+    conn = FakeConn()
+    result = await collect(conn, s, http=FakeHttpBadMiddlePage())
+    # 2p가 죽어도 3p가 수집되어야 한다.
+    assert result["scraped"] == 2
+    assert sorted(k[1] for k in conn.inserts) == ["1", "3"]
+
+
+class FakeHttpNetworkError:
+    """점핏 1p 정상 · 2p 네트워크 예외. 네트워크 실패는 그 소스를 중단한다."""
+    async def get(self, url, headers=None):
+        if "jumpit-api" in url:
+            if "page=1" in url:
+                return FakeResp({"result": {"positions": [
+                    {"id": 1, "title": "AI 엔지니어", "companyName": "A", "minCareer": 1}]}})
+            raise ConnectionError("네트워크 끊김")
+        return FakeResp({"result": {"positions": []}, "data": []})
+
+
+async def test_collect_stops_source_on_network_error():
+    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["AI"], max_pages=5))
+    conn = FakeConn()
+    result = await collect(conn, s, http=FakeHttpNetworkError())
+    assert result["scraped"] == 1  # 1p만 수집하고 중단(무한 재시도 방지)
+
+
 class FakeHttpMalformedJumpit:
     """점핏 page1이 파싱 불가능한 payload({"result": None}) → 파서 예외가 페이징을 끊어야 함."""
     async def get(self, url, headers=None):

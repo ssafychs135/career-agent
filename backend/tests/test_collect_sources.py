@@ -58,3 +58,36 @@ def test_parse_wanted_filters_by_category_and_title():
 def test_wanted_list_url_offset():
     url = wanted_list_url(518, 40)
     assert "job_group_id=518" in url and "offset=40" in url and "limit=20" in url
+
+
+def test_stack_name_survives_non_string_non_dict():
+    # 원티드가 skill_tags를 [1464, 1698] 같은 정수 ID 배열로 주는 공고가 실재한다.
+    # int에 .get()을 부르면 AttributeError → 파싱이 죽고 페이지네이션까지 끊겼다.
+    from app.collect.sources.common import _stack_name
+    assert _stack_name(1464) == ""
+    assert _stack_name(None) == ""
+    assert _stack_name(["Go"]) == ""
+    assert _stack_name({"title": "Go"}) == "Go"   # 기존 동작 유지
+    assert _stack_name("Python") == "Python"
+
+
+def test_parse_wanted_survives_integer_skill_tags():
+    # 실제 공고 178246의 형태: skill_tags가 정수 ID 배열.
+    payload = {"data": [
+        {"id": 178246, "position": "AI/ML Engineer", "company": {"name": "Z"},
+         "annual_from": 1, "skill_tags": [1464, 1698, 1554],
+         "category_tag": {"parent_id": 518}, "address": {"location": "서울"}},
+    ]}
+    out = parse_wanted_results(payload, [518, 507], ["AI"], 2)  # 예외 없이 반환되어야 함
+    assert len(out) == 1
+    assert out[0]["job_id"] == "178246"
+    assert out[0]["tech_stacks"] == []   # 정수 ID는 스택 이름이 아니므로 버린다
+
+
+def test_parse_jumpit_drops_unusable_stack_entries():
+    payload = {"result": {"positions": [
+        {"id": 1, "title": "AI 엔지니어", "companyName": "A", "minCareer": 1,
+         "techStacks": ["Python", 99, {"stack": "Go"}, {}]},
+    ]}}
+    out = parse_jumpit_positions(payload, ["AI"], 2)
+    assert out[0]["tech_stacks"] == ["Python", "Go"]   # 빈 이름은 저장하지 않는다

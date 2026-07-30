@@ -15,7 +15,7 @@ def parse_jumpit_positions(payload: dict, keywords, max_years) -> list[dict]:
             "company": p.get("companyName") or "", "title": title,
             "url": f"https://jumpit.saramin.co.kr/position/{p.get('id')}",
             "min_career": min_career, "max_career": p.get("maxCareer"),
-            "tech_stacks": [_stack_name(t) for t in (p.get("techStacks") or [])],
+            "tech_stacks": [n for n in (_stack_name(t) for t in (p.get("techStacks") or [])) if n],
             "locations": ", ".join(locs) if isinstance(locs, list) else str(locs or ""),
             "closed_at": p.get("closedAt"),
         })
