@@ -57,7 +57,8 @@ async def notifier_job(get_ctx) -> None:
             return
         # 미전송이 없으면 아무것도 하지 않는다 — 발송 시도도, run_log 행도 없음(워커와 동일 패턴).
         if not await conn.fetchval(
-            "SELECT 1 FROM jobs WHERE status='done' AND notified_at IS NULL LIMIT 1"
+            "SELECT 1 FROM jobs WHERE status='done' AND notified_at IS NULL "
+            "AND posting_state = 'open' LIMIT 1"
         ):
             return
         await logged_run(

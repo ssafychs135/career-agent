@@ -191,6 +191,37 @@ async def test_notifier_job_runs_when_enabled_and_unsent(monkeypatch):
     assert calls["pipeline"] == "notifier" and calls["trigger"] == "scheduled"
 
 
+async def test_notifier_peek_filters_out_closed_postings(monkeypatch):
+    """done+미전송이어도 마감된 공고뿐이면 peek는 거짓이어야 한다.
+    아니면 notified_at이 영원히 NULL로 남아 5분마다 run_log가 무기한 쌓인다."""
+    from app.settings_repo import Settings, SETTINGS_DEFAULTS
+    calls = {"logged_run": 0, "notify_tick": 0}
+
+    class _C:
+        async def fetchval(self, sql, *args):
+            assert "posting_state = 'open'" in sql, "peek SQL이 마감 공고를 걸러내지 못함"
+            return None  # 마감 공고뿐이라 open 필터에 걸려 아무것도 없음
+
+    conn = _C()
+
+    async def fake_get_settings(c):
+        return Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"], notify_enabled=True))
+    monkeypatch.setattr(cs, "get_settings", fake_get_settings)
+
+    async def fake_notify_tick(*a, **kw):
+        calls["notify_tick"] += 1
+        return {"picked": 0, "sent": 0, "skipped": 0}
+    monkeypatch.setattr(cs, "notify_tick", fake_notify_tick)
+
+    async def fake_logged_run(c, *, pipeline, trigger, run, **kw):
+        calls["logged_run"] += 1
+        return await run()
+    monkeypatch.setattr(cs, "logged_run", fake_logged_run)
+
+    await cs.notifier_job(lambda: (_Pool(conn), object(), Activity()))
+    assert calls == {"notify_tick": 0, "logged_run": 0}
+
+
 def test_start_registers_verify_job_at_midnight(monkeypatch):
     monkeypatch.setattr(cs, "AsyncIOScheduler", FakeSched)
     app = _app()
