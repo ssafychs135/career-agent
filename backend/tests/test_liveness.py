@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.collect.liveness import CLOSED, DELETED, OPEN, jumpit_state, wanted_state
 
@@ -22,6 +22,12 @@ def test_wanted_close_and_draft_are_closed():
 
 def test_wanted_hidden_alone_is_closed():
     assert wanted_state(200, {"data": {"job": {"status": "active", "hidden": True}}}) == CLOSED
+
+
+def test_wanted_is_private_alone_is_open():
+    """is_private는 검증되지 않은 필드 — hidden이 아니면 마감 신호로 쓰지 않는다."""
+    p = {"data": {"job": {"status": "active", "hidden": False, "is_private": True}}}
+    assert wanted_state(200, p) == OPEN
 
 
 def test_wanted_unknown_response_stays_open():
@@ -62,3 +68,15 @@ def test_jumpit_unknown_response_stays_open():
     assert jumpit_state(200, {}, NOW) == OPEN
     assert jumpit_state(200, {"result": None}, NOW) == OPEN
     assert jumpit_state(200, {"result": {"closedAt": "not-a-date"}}, NOW) == OPEN
+
+
+def test_jumpit_aware_closedat_with_naive_now_does_not_crash():
+    p = {"result": {"closedAt": "2026-07-12T23:59:59+09:00"}}
+    assert jumpit_state(200, p, NOW) == CLOSED
+
+
+def test_jumpit_naive_closedat_with_aware_now_does_not_crash():
+    p = {"result": {"closedAt": "2026-07-12 23:59:59"}}
+    aware_now = datetime.now(timezone.utc)
+    # tz 조합과 무관하게 예외 없이 판정만 되면 된다(어느 결과든 허용).
+    assert jumpit_state(200, p, aware_now) in (OPEN, CLOSED)

@@ -4,7 +4,7 @@
 공고를 숨기면, 사용자는 그 공고의 존재조차 모르므로 복구를 요청할 수 없다.
 잘못 숨기는 쪽이 잘못 보여주는 쪽보다 나쁘다.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.collect.collector import parse_dt
 
@@ -27,7 +27,7 @@ def wanted_state(http_status: int, payload: dict) -> str:
     status = job.get("status")
     if status is not None and status != "active":
         return CLOSED
-    if job.get("hidden") or job.get("is_private"):
+    if job.get("hidden"):
         return CLOSED
     return OPEN
 
@@ -48,7 +48,10 @@ def jumpit_state(http_status: int, payload: dict, now: datetime) -> str:
     closed_at = parse_dt(result.get("closedAt"))
     if closed_at is None:
         return OPEN
-    # parse_dt는 tz 없는 값을 naive로 돌려준다. now도 naive로 받는다(호출자 책임).
-    if closed_at.tzinfo is not None and now.tzinfo is None:
-        closed_at = closed_at.replace(tzinfo=None)
+    # closed_at·now의 tz 유무가 서로 다르면 비교 시 TypeError가 난다. 어느 조합이
+    # 와도 예외가 새지 않도록, aware 값은 UTC로 변환한 뒤 naive로 맞춰 비교한다.
+    if closed_at.tzinfo is not None:
+        closed_at = closed_at.astimezone(timezone.utc).replace(tzinfo=None)
+    if now.tzinfo is not None:
+        now = now.astimezone(timezone.utc).replace(tzinfo=None)
     return CLOSED if closed_at < now else OPEN
