@@ -80,3 +80,25 @@ test("duration and relative time", () => {
   expect(relativeTime("2026-07-23T09:55:00Z", now)).toBe("5분 전");
   expect(relativeTime("2026-07-23T08:00:00Z", now)).toBe("2시간 전");
 });
+
+test("verify 파이프라인 라벨", () => {
+  expect(pipelineLabel("verify")).toBe("생존 확인");
+});
+
+test("verify 요약 — 마감·삭제 건수", () => {
+  expect(runSummary(item({
+    pipeline: "verify", result: { checked: 476, closed: 139, deleted: 11, failed: 0 },
+  }))).toBe("확인 476건 · 마감 139 · 삭제 11");
+});
+
+test("verify 요약 — 아무것도 죽지 않았으면 건수만", () => {
+  expect(runSummary(item({
+    pipeline: "verify", result: { checked: 476, closed: 0, deleted: 0, failed: 0 },
+  }))).toBe("확인 476건");
+});
+
+test("verify 요약 — 판정 불가가 있으면 표시", () => {
+  expect(runSummary(item({
+    pipeline: "verify", result: { checked: 476, closed: 0, deleted: 0, failed: 476 },
+  }))).toBe("확인 476건 · 실패 476");
+});

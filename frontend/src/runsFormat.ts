@@ -1,7 +1,8 @@
 import type { RunLogItem } from "./runsApi";
 
 export function pipelineLabel(p: string): string {
-  return p === "collector" ? "수집기" : p === "worker" ? "요약" : p === "notifier" ? "알림" : "리서치";
+  return p === "collector" ? "수집기" : p === "worker" ? "요약"
+    : p === "notifier" ? "알림" : p === "verify" ? "생존 확인" : "리서치";
 }
 
 export function triggerLabel(t: string): string {
@@ -26,6 +27,15 @@ export function runSummary(it: RunLogItem): string {
   if (it.pipeline === "notifier") {
     const skipped = Number(r.skipped ?? 0);
     return `발송 ${r.sent ?? 0}건${skipped ? ` · 건너뜀 ${skipped}` : ""}`;
+  }
+  if (it.pipeline === "verify") {
+    const closed = Number(r.closed ?? 0);
+    const deleted = Number(r.deleted ?? 0);
+    const failed = Number(r.failed ?? 0);
+    return `확인 ${r.checked ?? 0}건`
+      + (closed ? ` · 마감 ${closed}` : "")
+      + (deleted ? ` · 삭제 ${deleted}` : "")
+      + (failed ? ` · 실패 ${failed}` : "");
   }
   const name = it.label || it.ref;
   if (it.status === "skipped") return `${name} · 캐시`;
