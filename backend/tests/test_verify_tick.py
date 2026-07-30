@@ -25,17 +25,19 @@ class Http:
 
 
 class Conn:
-    def __init__(self, rows, lock=True):
+    def __init__(self, rows, lock=True, expired=0):
         self.rows = rows
         self.lock = lock
         self.executed = []
-        self.expired = 0
+        self.expired = expired   # 점핏 일괄 만료 SQL이 바꿨다고 할 행 수
     async def fetchval(self, sql, *args):
         if "pg_try_advisory_lock" in sql:
             return self.lock
         return None
     async def execute(self, sql, *args):
         self.executed.append((sql, args))
+        if "closed_at IS NOT NULL" in sql:      # EXPIRE_JUMPIT_SQL
+            return f"UPDATE {self.expired}"
         return "UPDATE 0"
     async def fetch(self, sql, *args):
         return self.rows
@@ -61,6 +63,25 @@ async def test_expires_jumpit_by_sql_before_api():
     assert "posting_state='closed'" in sqls.replace(" ", "")
     assert "closed_at" in sqls
     assert http.calls == []      # 만료 처리에 API를 쓰지 않음
+
+
+async def test_sql_expired_jumpit_rows_are_counted():
+    """SQL로 만료시킨 점핏 행도 지표에 포함해야 한다.
+
+    프로덕션 첫 실행에서 DB는 99건 마감인데 run_log는 86건으로 기록했다 —
+    일괄 UPDATE의 rowcount를 버려서 화면이 DB보다 13건 적게 보고했다.
+    """
+    conn = Conn([], expired=13)
+    r = await verify_tick(conn, http=Http())
+    assert r["closed"] == 13
+    assert r["checked"] == 13   # SQL로 확인한 것도 확인이다
+
+
+async def test_sql_expired_and_api_closed_are_summed():
+    conn = Conn([_row("wanted", "111")], expired=13)
+    http = Http({"111": Resp(200, {"data": {"job": {"status": "close"}}})})
+    r = await verify_tick(conn, http=http)
+    assert r == {"checked": 14, "closed": 14, "deleted": 0, "failed": 0}
 
 
 def test_select_open_sql_filters_open_only():

@@ -36,6 +36,18 @@ MARK_STATE_SQL = (
 )
 
 
+def _rowcount(status) -> int:
+    """asyncpg execute의 상태 문자열("UPDATE 13")에서 건수를 뽑는다.
+
+    일괄 UPDATE의 rowcount를 버리면 지표가 DB보다 적게 보고한다(수집기의 inserted가
+    같은 이유로 거짓말했다). 형식이 다르면 0 — 지표만 보수적으로 낮아지고 판정에는 영향 없음.
+    """
+    try:
+        return int(str(status).split()[-1])
+    except (ValueError, IndexError):
+        return 0
+
+
 def _request(source: str, job_id: str):
     """(url, headers) — 원티드만 프록시를 경유한다(수집기와 동일 규칙)."""
     url = detail_url(source, job_id)
@@ -50,7 +62,8 @@ async def verify_tick(conn, *, http, on_stage=None) -> dict:
     if not await conn.fetchval("SELECT pg_try_advisory_lock($1)", VERIFY_LOCK_KEY):
         return {"checked": 0, "closed": 0, "deleted": 0, "failed": 0}
     try:
-        await conn.execute(EXPIRE_JUMPIT_SQL)
+        # SQL로 만료시킨 행도 '확인·마감'이다 — 세지 않으면 화면이 DB보다 적게 보고한다.
+        expired = _rowcount(await conn.execute(EXPIRE_JUMPIT_SQL))
 
         rows = [dict(r) for r in await conn.fetch(SELECT_OPEN_SQL)]
         now = datetime.now(timezone.utc)
@@ -81,9 +94,9 @@ async def verify_tick(conn, *, http, on_stage=None) -> dict:
                 closed += 1
             elif state == DELETED:
                 deleted += 1
-        log.info("verify: checked=%d closed=%d deleted=%d failed=%d",
-                 len(rows), closed, deleted, failed)
-        return {"checked": len(rows), "closed": closed,
+        log.info("verify: checked=%d closed=%d deleted=%d failed=%d (sql만료 %d 포함)",
+                 len(rows) + expired, closed + expired, deleted, failed, expired)
+        return {"checked": len(rows) + expired, "closed": closed + expired,
                 "deleted": deleted, "failed": failed}
     finally:
         await conn.execute("SELECT pg_advisory_unlock($1)", VERIFY_LOCK_KEY)
