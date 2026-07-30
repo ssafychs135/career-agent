@@ -17,6 +17,15 @@ INSERT_SQL = (
     "RETURNING id"
 )
 
+# 목록에 다시 보인 공고는 살아있다 — 재검증기의 오판정과 재게시를 자동 복구한다.
+# INSERT의 ON CONFLICT DO UPDATE로 합치지 않는 이유: RETURNING id에 중복 행까지
+# 잡혀 inserted 카운트가 다시 거짓말을 하게 된다.
+REVIVE_SQL = (
+    "UPDATE jobs SET posting_state = 'open', state_checked_at = NULL "
+    "WHERE posting_state <> 'open' "
+    "AND (source, job_id) IN (SELECT unnest($1::text[]), unnest($2::text[]))"
+)
+
 
 def parse_dt(v):
     """소스 API의 closed_at은 ISO 문자열 → asyncpg timestamptz는 datetime을 요구.
@@ -108,5 +117,8 @@ async def collect(conn, settings, *, http, on_stage=None) -> dict:
     for r in rows:
         if await conn.fetchval(INSERT_SQL, *_row_params(r)) is not None:
             inserted += 1
+    if rows:
+        await conn.execute(REVIVE_SQL, [r["source"] for r in rows],
+                           [r["job_id"] for r in rows])
     log.info("collect: scraped=%d inserted=%d", len(rows), inserted)
     return {"scraped": len(rows), "inserted": inserted}

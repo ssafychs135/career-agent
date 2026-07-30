@@ -62,6 +62,7 @@ class FakeConn:
     def __init__(self, existing=()):
         self.existing = set(existing)
         self.inserts = []          # 실제로 새로 들어간 키
+        self.executed = []         # (sql, args) — 되살아남 UPDATE 등
     async def fetchval(self, sql, *args):
         key = (args[0], args[1])   # $1 source, $2 job_id
         if key in self.existing:
@@ -69,6 +70,9 @@ class FakeConn:
         self.existing.add(key)
         self.inserts.append(key)
         return len(self.inserts)   # 가짜 id
+    async def execute(self, sql, *args):
+        self.executed.append((sql, args))
+        return "UPDATE 0"
 
 
 async def test_collect_scrapes_and_inserts():
@@ -145,3 +149,31 @@ async def test_collect_survives_malformed_jumpit_payload():
     result = await collect(conn, s, http=http)  # 예외 없이 정상 반환되어야 함
     assert result == {"scraped": 0, "inserted": 0}
     assert isinstance(result["scraped"], int) and isinstance(result["inserted"], int)
+
+
+async def test_collect_revives_previously_dead_postings():
+    """목록에 다시 보였다는 것은 살아있다는 뜻 — 오판정·재게시를 자동 복구한다."""
+    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["백엔드"], max_pages=3))
+    conn = FakeConn()
+    await collect(conn, s, http=FakeHttp())
+    revives = [(sql, a) for sql, a in conn.executed if "posting_state" in sql]
+    assert len(revives) == 1
+    sql, args = revives[0]
+    assert "posting_state <> 'open'" in sql
+    assert sorted(args[0]) == ["jumpit", "wanted"]   # $1 source 배열
+    assert sorted(args[1]) == ["1", "10"]            # $2 job_id 배열
+
+
+async def test_collect_skips_revive_when_nothing_scraped():
+    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["백엔드"], max_pages=3))
+    conn = FakeConn()
+    await collect(conn, s, http=FakeHttpMalformedJumpit())   # 0건
+    assert [sql for sql, _a in conn.executed if "posting_state" in sql] == []
+
+
+async def test_revive_does_not_inflate_inserted_count():
+    """되살아남은 UPDATE라 inserted(RETURNING id 기반)에 영향을 주면 안 된다."""
+    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["백엔드"], max_pages=3))
+    conn = FakeConn(existing={("jumpit", "1"), ("wanted", "10")})   # 둘 다 이미 있음
+    result = await collect(conn, s, http=FakeHttp())
+    assert result == {"scraped": 2, "inserted": 0}
