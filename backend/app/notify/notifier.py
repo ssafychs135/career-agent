@@ -58,6 +58,7 @@ SELECT_SQL = (
     "SELECT id, source, job_id, company, title, url, locations, "
     "min_career, max_career, tech_stacks, summary "
     "FROM jobs WHERE status='done' AND notified_at IS NULL "
+    "AND posting_state = 'open' "
     "ORDER BY collected_at LIMIT $1"
 )
 MARK_SQL = "UPDATE jobs SET notified_at=now() WHERE id = ANY($1::bigint[]) AND notified_at IS NULL"
