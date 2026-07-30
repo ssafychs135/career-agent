@@ -69,3 +69,11 @@ async def test_pending_companies_maps_rows():
 async def test_pending_jobs_maps_tuples():
     db = FakeDB(fetch=[{"source": "s", "job_id": "1"}])
     assert await store.pending_jobs(db, 5) == [("s", "1")]
+
+
+async def test_pending_jobs_filters_open_postings_only():
+    """마감·삭제된 공고는 리서치 대기열에 남으면 안 된다 — Claude 호출은 비싸다."""
+    db = FakeDB(fetch=[])
+    await store.pending_jobs(db, 5)
+    q = db.calls[0][1]
+    assert "posting_state" in q and "'open'" in q
