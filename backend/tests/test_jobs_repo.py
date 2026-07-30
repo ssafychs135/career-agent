@@ -3,8 +3,9 @@ from app.jobs_repo import _split_detail, build_list_query
 
 def test_build_query_no_filters():
     sql, params = build_list_query(limit=20, offset=0)
-    # 필터가 없어도 항상 posting_state = 'open' 절이 붙는다
-    assert "WHERE posting_state = 'open'" in sql
+    # 필터가 없어도 항상 posting_state = 'open' 절이 붙는다 — WHERE 절에는 그것만 있어야 함
+    where = sql.split("FROM jobs", 1)[1].split(" ORDER BY")[0].strip()
+    assert where == "WHERE posting_state = 'open'"
     assert "FROM jobs" in sql
     assert "COUNT(*) OVER()" in sql
     assert "has_company_research" in sql
@@ -51,8 +52,9 @@ def test_build_query_pagination_positions():
 
 def test_build_query_ignores_none_and_empty():
     sql, params = build_list_query(status=None, source="", keyword=None, limit=20, offset=0)
-    # None이나 빈 문자열은 무시하지만, posting_state = 'open'은 항상 적용됨
-    assert "posting_state = 'open'" in sql
+    # None이나 빈 문자열은 무시되어야 하므로 WHERE 절에는 posting_state = 'open' 하나만 있어야 함
+    where = sql.split("FROM jobs", 1)[1].split(" ORDER BY")[0].strip()
+    assert where == "WHERE posting_state = 'open'"
     # 파라미터가 limit, offset만 있다 (status, source, keyword 필터가 없음)
     assert params == [20, 0]
 
