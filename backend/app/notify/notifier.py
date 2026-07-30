@@ -10,7 +10,9 @@ EMBED_COLOR = 5814783   # 원본 값
 NOTIFY_LOCK_KEY = 8123401  # notify_tick 동시 실행 방지용 advisory lock 키
 
 # 요약 본문 끝의 "기술스택: ..." 줄은 별도 필드로 보여주므로 설명에서 제거.
-_STACK_LINE = re.compile(r"\n?기술스택\s*[:：].*$", re.M)
+# 줄머리 마크다운 장식(-, *, #)과 라벨을 감싼 볼드를 함께 허용한다 —
+# claude가 "**기술스택**:"으로 쓰면 예전 패턴이 못 잡아 설명에 중복 노출됐다.
+_STACK_LINE = re.compile(r"\n?[ \t]*[-*#>]*[ \t]*\**\s*기술스택\s*\**\s*[:：].*$", re.M)
 
 
 def build_embed(row: dict) -> dict:

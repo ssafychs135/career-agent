@@ -11,6 +11,7 @@ from app.settings_repo import get_settings
 log = logging.getLogger("collect.scheduler")
 
 NOTIFY_INTERVAL_MIN = 5  # 원본(n8n) 주기
+SCHED_TZ = "Asia/Seoul"  # collect_hour는 사용자가 보는 시각(KST) 기준
 
 
 async def collector_job(get_ctx) -> None:
@@ -72,7 +73,10 @@ def start_collect_scheduler(app) -> None:
     """
     if getattr(app.state, "collect_scheduler", None) is not None:
         return
-    sched = AsyncIOScheduler()
+    # 타임존을 명시하지 않으면 프로세스 로컬(=컨테이너 TZ 미설정이라 UTC)을 쓴다.
+    # 그러면 collect_hour=9가 09:00 UTC = 18:00 KST에 돌아 설정과 9시간 어긋난다.
+    # 스케줄러에 걸면 add_job·reschedule_job의 cron 트리거가 모두 이 값을 물려받는다.
+    sched = AsyncIOScheduler(timezone=SCHED_TZ)
     get_ctx = lambda: (app.state.db, app.state.http, app.state.activity)  # noqa: E731
     sched.add_job(collector_job, "cron", id="collector", hour=9, minute=0, args=[get_ctx])
     sched.add_job(worker_job, "interval", id="worker", minutes=5, args=[get_ctx])

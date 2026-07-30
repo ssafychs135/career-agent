@@ -9,14 +9,17 @@ SUMMARY_SYSTEM_PROMPT = (
     "공고에 등장한 기술 스택을 쉼표로 구분해 나열하라."
 )
 
-_STACK_RE = re.compile(r"기술스택\s*[:：]\s*(.+)")
+# 라벨 주변의 마크다운 장식(**, ##, - 등)을 허용한다. claude는 프롬프트가 평문을
+# 요구해도 "**기술스택**:"처럼 감싸는 경우가 있고(비결정적), 그러면 스택을 통째로 놓쳤다.
+_STACK_RE = re.compile(r"기술스택\s*\**\s*[:：]\s*\**\s*(.+)")
+_MD = re.compile(r"^[*_`\s]+|[*_`\s]+$")
 
 
 def extract_stacks(content: str) -> list[str]:
     m = _STACK_RE.search(content or "")
     if not m:
         return []
-    return [s.strip() for s in re.split(r"[,·]", m.group(1)) if s.strip()]
+    return [s for s in (_MD.sub("", p) for p in re.split(r"[,·]", m.group(1))) if s]
 
 
 async def summarize(prompt, settings, *, http, model="", runner=run_claude, on_step=None) -> str | None:

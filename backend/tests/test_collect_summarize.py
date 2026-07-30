@@ -30,6 +30,15 @@ def test_extract_stacks():
     assert extract_stacks("스택 언급 없음") == []
 
 
+def test_extract_stacks_tolerates_markdown_label():
+    # claude는 라벨을 마크다운으로 감싸는 경우가 있다(비결정적, 실측 9건 중 1건).
+    # 로컬 LLM은 평문만 냈기 때문에 claude 전환 후에야 드러난 형태다.
+    assert extract_stacks("요약\n**기술스택**: Python, LLM") == ["Python", "LLM"]
+    assert extract_stacks("요약\n**기술스택:** Python, LLM") == ["Python", "LLM"]
+    assert extract_stacks("요약\n- **기술스택**: Python") == ["Python"]
+    assert extract_stacks("요약\n### 기술스택: Go") == ["Go"]
+
+
 async def test_summarize_local_calls_lmstudio():
     http = Http(post_resp=Resp(200, {"choices": [{"message": {"content": "3줄 요약"}}]}))
     s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"], summary_backend="local"))

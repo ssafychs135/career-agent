@@ -4,7 +4,9 @@ from app.activity import Activity
 
 
 class FakeSched:
-    def __init__(self): self.jobs = {}; self.started = False; self.shutdown_called = False
+    def __init__(self, **kw):
+        self.jobs = {}; self.started = False; self.shutdown_called = False
+        self.init_kw = kw
     def add_job(self, fn, trigger, id=None, **kw): self.jobs[id] = (trigger, kw)
     def reschedule_job(self, job_id, trigger=None, **kw): self.jobs[job_id] = (trigger, kw)
     def start(self): self.started = True
@@ -26,6 +28,28 @@ def test_start_registers_three_jobs(monkeypatch):
     sched = app.state.collect_scheduler
     assert set(sched.jobs) == {"collector", "worker", "notifier"}
     assert sched.started is True
+
+
+def test_scheduler_is_built_with_seoul_timezone(monkeypatch):
+    # 백엔드 컨테이너에 TZ가 없어 프로세스 로컬은 UTC다. 타임존을 명시하지 않으면
+    # collect_hour=9가 09:00 UTC = 18:00 KST에 돌아 사용자 의도와 9시간 어긋난다.
+    monkeypatch.setattr(cs, "AsyncIOScheduler", FakeSched)
+    app = _app()
+    cs.start_collect_scheduler(app)
+    assert app.state.collect_scheduler.init_kw.get("timezone") == "Asia/Seoul"
+
+
+def test_cron_triggers_actually_resolve_to_seoul(monkeypatch):
+    """APScheduler가 실제로 그 타임존을 크론 트리거에 적용하는지 — 등록 시점과 재스케줄 후 모두."""
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    sched = AsyncIOScheduler(timezone=cs.SCHED_TZ)
+    job = sched.add_job(lambda: None, "cron", id="collector", hour=9, minute=0)
+    assert str(job.trigger.timezone) == "Asia/Seoul"
+    assert job.trigger.fields[job.trigger.FIELD_NAMES.index("hour")].expressions[0].first == 9
+    sched.reschedule_job("collector", trigger="cron", hour=7, minute=0)
+    t = sched.get_job("collector").trigger
+    assert str(t.timezone) == "Asia/Seoul"   # 재스케줄해도 타임존이 유지되어야 함
+    assert t.fields[t.FIELD_NAMES.index("hour")].expressions[0].first == 7
 
 
 def test_start_is_idempotent(monkeypatch):

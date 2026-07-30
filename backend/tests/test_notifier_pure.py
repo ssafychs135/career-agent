@@ -17,6 +17,14 @@ def test_build_embed_strips_stack_line_from_description():
     assert e["description"] == "좋은 회사"
 
 
+def test_build_embed_strips_markdown_wrapped_stack_line():
+    # 스택은 별도 필드로 이미 보여주므로 설명에 중복 노출되면 안 된다.
+    # claude가 라벨을 볼드로 감싸면 기존 정규식이 못 잡아 그대로 남았다.
+    e = build_embed(_row(summary="좋은 회사\n**기술스택**: python, fastapi"))
+    assert "기술스택" not in e["description"]
+    assert e["description"] == "좋은 회사"
+
+
 def test_build_embed_strips_only_first_stack_line_like_original_js():
     # 원본 JS는 /g 없는 replace라 첫 매치만 제거한다 — 포팅 충실도(디스코드 출력 동일성).
     e = build_embed(_row(summary="기술스택: A\n본문\n기술스택: B"))
