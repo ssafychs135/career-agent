@@ -4,7 +4,7 @@
 상세 API를 순회하며 소스별로 판정한다. 판정 불가는 open을 유지한다.
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import quote
 
 from app.collect.config import DETAIL_TIMEOUT, JOB_PROXY_SECRET, JOB_PROXY_URL
@@ -17,6 +17,10 @@ VERIFY_LOCK_KEY = 8123402  # 알림기(8123401)와 다른 키
 VERIFY_HOUR = 0            # KST 자정(스케줄러 timezone=Asia/Seoul)
 
 _UA = {"User-Agent": "Mozilla/5.0"}
+
+# 소스별로 liveness 함수가 해석할 수 있는 status만 판정에 넘긴다. 그 외(500/502/403/429 등)는
+# 프록시·업스트림 오류이지 공고 상태가 아니다 — failed로 집계하고 상태는 건드리지 않는다.
+_KNOWN_STATUS = {"wanted": (200, 404), "jumpit": (200, 400)}
 
 # 점핏 만료는 API 없이 일괄 처리 — closed_at은 수집 시점에 이미 저장돼 있다.
 EXPIRE_JUMPIT_SQL = (
@@ -49,7 +53,7 @@ async def verify_tick(conn, *, http, on_stage=None) -> dict:
         await conn.execute(EXPIRE_JUMPIT_SQL)
 
         rows = [dict(r) for r in await conn.fetch(SELECT_OPEN_SQL)]
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         closed = deleted = failed = 0
         for i, row in enumerate(rows):
             source, job_id = row["source"], row["job_id"]
@@ -61,6 +65,9 @@ async def verify_tick(conn, *, http, on_stage=None) -> dict:
                 payload = resp.json()
                 status_code = resp.status_code
             except Exception:  # noqa: BLE001 — 판정 불가. 숨기지 않는다.
+                failed += 1
+                continue
+            if status_code not in _KNOWN_STATUS[source]:
                 failed += 1
                 continue
             try:

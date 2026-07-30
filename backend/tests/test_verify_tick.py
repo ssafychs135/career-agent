@@ -1,4 +1,4 @@
-from app.collect.verify import VERIFY_LOCK_KEY, verify_tick
+from app.collect.verify import MARK_STATE_SQL, SELECT_OPEN_SQL, VERIFY_LOCK_KEY, verify_tick
 
 
 class Resp:
@@ -58,9 +58,14 @@ async def test_expires_jumpit_by_sql_before_api():
     http = Http()
     await verify_tick(conn, http=http)
     sqls = " ".join(s for s, _a in conn.executed)
-    assert "posting_state='closed'" in sqls.replace(" ", "").replace("=", "=")
+    assert "posting_state='closed'" in sqls.replace(" ", "")
     assert "closed_at" in sqls
     assert http.calls == []      # 만료 처리에 API를 쓰지 않음
+
+
+def test_select_open_sql_filters_open_only():
+    """스펙이 요구한 open 필터를 SQL 문자열로 고정한다."""
+    assert "posting_state='open'" in SELECT_OPEN_SQL
 
 
 async def test_marks_wanted_closed_and_deleted():
@@ -95,3 +100,21 @@ async def test_jumpit_uses_direct_url_not_proxy():
     http = Http({"555": Resp(200, {"result": {"closedAt": "2030-01-01 00:00:00"}})})
     await verify_tick(conn, http=http)
     assert any("jumpit-api" in u for u in http.calls)
+
+
+async def test_wanted_500_counts_as_failed_and_does_not_mark_state():
+    """프록시가 살아서 5xx/429를 뱉어도 판정 불가 — failed로 집계하고 상태는 건드리지 않는다."""
+    conn = Conn([_row("wanted", "111")])
+    http = Http({"111": Resp(500, {})})
+    r = await verify_tick(conn, http=http)
+    assert r["checked"] == 1 and r["failed"] == 1
+    assert r["closed"] == 0 and r["deleted"] == 0
+    assert MARK_STATE_SQL not in [s for s, _a in conn.executed]
+
+
+async def test_jumpit_429_counts_as_failed_and_does_not_mark_state():
+    conn = Conn([_row("jumpit", "555")])
+    http = Http({"555": Resp(429, {})})
+    r = await verify_tick(conn, http=http)
+    assert r["failed"] == 1
+    assert MARK_STATE_SQL not in [s for s, _a in conn.executed]
