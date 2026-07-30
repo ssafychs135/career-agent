@@ -56,6 +56,21 @@ test("summary strip merges health probes and live status", async () => {
   expect(screen.getByText(/4\/20/)).toBeTruthy();
 });
 
+test("생존 확인 파이프라인도 라이브 모니터에 표시", async () => {
+  // 재검증은 결과가 응답에 실리지 않는(202+백그라운드) 유일한 파이프라인이라
+  // 이 행이 없으면 분 단위 실행 내내 화면이 침묵한다.
+  global.fetch = mockFetch({
+    ...STATUS,
+    activity: {
+      collector: null, worker: null, research: [],
+      verify: { stage: "생존 확인", detail: "wanted:111", progress: "12/476" },
+    },
+  }) as unknown as typeof fetch;
+  render(<Ops />);
+  await waitFor(() => expect(screen.getByText("wanted:111")).toBeTruthy());
+  expect(screen.getByText(/12\/476/)).toBeTruthy();
+});
+
 test("loads settings, save disabled until dirty, then PUTs edited value", async () => {
   render(<Ops />);
   await waitFor(() => expect(screen.getByText("백엔드")).toBeTruthy());

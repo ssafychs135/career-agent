@@ -93,7 +93,8 @@ export default function Ops() {
 
   const col = status?.activity.collector ?? null;
   const wrk = status?.activity.worker ?? null;
-  const active = !!col || !!wrk;
+  const vfy = status?.activity.verify ?? null;
+  const active = !!col || !!wrk || !!vfy;
   const prevActive = useRef(false);
   useEffect(() => {
     if (prevActive.current && !active) refreshRuns();
@@ -144,6 +145,7 @@ export default function Ops() {
               <>
                 <MonitorRow name="수집기" live={!!col} stage={col ? col.stage : "idle"} detail={col?.detail} progress={col?.progress} />
                 <MonitorRow name="워커" live={!!wrk} stage={wrk ? wrk.stage : "idle"} detail={wrk?.detail} progress={wrk?.progress} />
+                <MonitorRow name="생존 확인" live={!!vfy} stage={vfy ? vfy.stage : "idle"} detail={vfy?.detail} progress={vfy?.progress} />
                 {status.activity.research.length === 0 ? (
                   <MonitorRow name="리서치" stage="idle" live={false} />
                 ) : (

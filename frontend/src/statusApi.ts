@@ -2,6 +2,7 @@ export interface StatusResponse {
   activity: {
     collector: { stage: string; detail: string; progress: string } | null;
     worker: { stage: string; detail: string; progress: string } | null;
+    verify: { stage: string; detail: string; progress: string } | null;
     research: { detail_key: string; stage: string; detail: string }[];
   };
   counts: { pending: number; done: number; failed: number; skipped: number; research_running: number };

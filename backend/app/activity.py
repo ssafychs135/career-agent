@@ -5,7 +5,7 @@ class Activity:
     """
 
     def __init__(self) -> None:
-        self._slots: dict[str, dict | None] = {"collector": None, "worker": None}
+        self._slots: dict[str, dict | None] = {"collector": None, "worker": None, "verify": None}
         self._research: dict[str, dict] = {}
 
     def set_stage(self, pipeline: str, stage: str, detail: str = "", progress: str = "") -> None:
@@ -24,5 +24,6 @@ class Activity:
         return {
             "collector": self._slots["collector"],
             "worker": self._slots["worker"],
+            "verify": self._slots["verify"],
             "research": list(self._research.values()),
         }
