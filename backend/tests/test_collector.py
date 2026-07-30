@@ -177,3 +177,4 @@ async def test_revive_does_not_inflate_inserted_count():
     conn = FakeConn(existing={("jumpit", "1"), ("wanted", "10")})   # 둘 다 이미 있음
     result = await collect(conn, s, http=FakeHttp())
     assert result == {"scraped": 2, "inserted": 0}
+    assert any("posting_state" in sql for sql, _ in conn.executed), "revive UPDATE가 실제로 실행되지 않음"
