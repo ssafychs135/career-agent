@@ -34,6 +34,9 @@ def build_list_query(
         params.append(value)
         clauses.append(template.format(n=len(params)))
 
+    # 마감·삭제된 공고는 항상 숨긴다. 사용자 입력이 아니고 늘 적용되므로 리터럴.
+    clauses.append("posting_state = 'open'")
+
     if status:
         add("status = ${n}", status)
     if source:

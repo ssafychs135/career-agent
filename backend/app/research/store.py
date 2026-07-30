@@ -110,6 +110,7 @@ async def pending_jobs(db, limit=10):
            FROM jobs j
            LEFT JOIN job_research r ON r.source = j.source AND r.job_id = j.job_id
            WHERE (r.source IS NULL OR r.status = 'failed')
+             AND j.posting_state = 'open'
            LIMIT $1""",
         limit,
     )

@@ -3,7 +3,9 @@ from app.jobs_repo import _split_detail, build_list_query
 
 def test_build_query_no_filters():
     sql, params = build_list_query(limit=20, offset=0)
-    assert "WHERE" not in sql.split("FROM jobs", 1)[1]
+    # 필터가 없어도 항상 posting_state = 'open' 절이 붙는다 — WHERE 절에는 그것만 있어야 함
+    where = sql.split("FROM jobs", 1)[1].split(" ORDER BY")[0].strip()
+    assert where == "WHERE posting_state = 'open'"
     assert "FROM jobs" in sql
     assert "COUNT(*) OVER()" in sql
     assert "has_company_research" in sql
@@ -50,7 +52,10 @@ def test_build_query_pagination_positions():
 
 def test_build_query_ignores_none_and_empty():
     sql, params = build_list_query(status=None, source="", keyword=None, limit=20, offset=0)
-    assert "WHERE" not in sql.split("FROM jobs", 1)[1]
+    # None이나 빈 문자열은 무시되어야 하므로 WHERE 절에는 posting_state = 'open' 하나만 있어야 함
+    where = sql.split("FROM jobs", 1)[1].split(" ORDER BY")[0].strip()
+    assert where == "WHERE posting_state = 'open'"
+    # 파라미터가 limit, offset만 있다 (status, source, keyword 필터가 없음)
     assert params == [20, 0]
 
 
@@ -163,3 +168,23 @@ def test_split_detail_exposes_research_model():
     }
     out = _split_detail(row)
     assert out["jobResearch"]["model"] == "opus"
+
+
+def test_list_query_always_hides_non_open_postings():
+    from app.jobs_repo import build_list_query
+    sql, params = build_list_query()
+    assert "posting_state = 'open'" in sql          # 필터가 하나도 없어도 붙는다
+    sql2, params2 = build_list_query(status="done", keyword="AI")
+    assert "posting_state = 'open'" in sql2
+
+
+def test_list_query_keeps_limit_offset_last():
+    from app.jobs_repo import build_list_query
+    sql, params = build_list_query(keyword="AI", limit=20, offset=40)
+    assert params[-2:] == [20, 40]                  # posting_state는 파라미터가 아님
+
+
+def test_detail_query_does_not_filter_dead_postings():
+    """디스코드 링크·북마크로 들어온 사용자에게 404를 내면 안 된다 — 목록에서만 뺀다."""
+    from app.jobs_repo import _DETAIL_SQL
+    assert "posting_state" not in _DETAIL_SQL
