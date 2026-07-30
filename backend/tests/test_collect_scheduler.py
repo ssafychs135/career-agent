@@ -21,12 +21,12 @@ def _app():
     return app
 
 
-def test_start_registers_three_jobs(monkeypatch):
+def test_start_registers_four_jobs(monkeypatch):
     monkeypatch.setattr(cs, "AsyncIOScheduler", FakeSched)
     app = _app()
     cs.start_collect_scheduler(app)
     sched = app.state.collect_scheduler
-    assert set(sched.jobs) == {"collector", "worker", "notifier"}
+    assert set(sched.jobs) == {"collector", "worker", "notifier", "verify"}
     assert sched.started is True
 
 
@@ -189,3 +189,61 @@ async def test_notifier_job_runs_when_enabled_and_unsent(monkeypatch):
     await cs.notifier_job(get_ctx)
     assert calls["notify_tick"] == 1 and calls["logged_run"] == 1
     assert calls["pipeline"] == "notifier" and calls["trigger"] == "scheduled"
+
+
+def test_start_registers_verify_job_at_midnight(monkeypatch):
+    monkeypatch.setattr(cs, "AsyncIOScheduler", FakeSched)
+    app = _app()
+    cs.start_collect_scheduler(app)
+    sched = app.state.collect_scheduler
+    assert "verify" in sched.jobs
+    trigger, kw = sched.jobs["verify"]
+    assert trigger == "cron" and kw["hour"] == 0 and kw["minute"] == 0
+
+
+async def test_verify_job_noop_when_disabled(monkeypatch):
+    """enabled=false면 재검증도 돌지 않는다(수집기·워커와 동일한 컷오버 규칙)."""
+    from app.settings_repo import Settings, SETTINGS_DEFAULTS
+    calls = {"verify_tick": 0, "logged_run": 0}
+
+    async def fake_get_settings(c):
+        return Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"], enabled=False))
+    monkeypatch.setattr(cs, "get_settings", fake_get_settings)
+
+    async def fake_verify_tick(*a, **kw):
+        calls["verify_tick"] += 1
+        return {"checked": 0, "closed": 0, "deleted": 0, "failed": 0}
+    monkeypatch.setattr(cs, "verify_tick", fake_verify_tick)
+
+    async def fake_logged_run(c, *, pipeline, trigger, run, **kw):
+        calls["logged_run"] += 1
+        return await run()
+    monkeypatch.setattr(cs, "logged_run", fake_logged_run)
+
+    conn = _Conn(has_pending=False)
+    await cs.verify_job(lambda: (_Pool(conn), object(), Activity()))
+    assert calls == {"verify_tick": 0, "logged_run": 0}
+
+
+async def test_verify_job_runs_when_enabled(monkeypatch):
+    from app.settings_repo import Settings, SETTINGS_DEFAULTS
+    calls = {"verify_tick": 0, "pipeline": None, "trigger": None}
+
+    async def fake_get_settings(c):
+        return Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"], enabled=True))
+    monkeypatch.setattr(cs, "get_settings", fake_get_settings)
+
+    async def fake_verify_tick(*a, **kw):
+        calls["verify_tick"] += 1
+        return {"checked": 1, "closed": 0, "deleted": 0, "failed": 0}
+    monkeypatch.setattr(cs, "verify_tick", fake_verify_tick)
+
+    async def fake_logged_run(c, *, pipeline, trigger, run, **kw):
+        calls["pipeline"], calls["trigger"] = pipeline, trigger
+        return await run()
+    monkeypatch.setattr(cs, "logged_run", fake_logged_run)
+
+    conn = _Conn(has_pending=False)
+    await cs.verify_job(lambda: (_Pool(conn), object(), Activity()))
+    assert calls["verify_tick"] == 1
+    assert calls["pipeline"] == "verify" and calls["trigger"] == "scheduled"

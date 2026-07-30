@@ -7,7 +7,8 @@ from app.research.discord import push
 
 log = logging.getLogger("run_log")
 
-_KO = {"collector": "수집", "worker": "요약 처리", "research": "리서치", "notifier": "알림 발송"}
+_KO = {"collector": "수집", "worker": "요약 처리", "research": "리서치",
+       "notifier": "알림 발송", "verify": "생존 확인"}
 
 _INSERT = (
     "INSERT INTO run_log "

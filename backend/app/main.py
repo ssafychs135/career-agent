@@ -15,6 +15,7 @@ from app.routers import notify as notify_router
 from app.routers import runs as runs_router
 from app.routers import settings as settings_router
 from app.routers import status as status_router
+from app.routers import verify as verify_router
 from app.routers import research
 from app.settings_repo import get_settings
 
@@ -60,6 +61,7 @@ app.include_router(status_router.router)
 app.include_router(runs_router.router)
 app.include_router(facets_router.router)
 app.include_router(notify_router.router)
+app.include_router(verify_router.router)
 
 
 @app.get("/api/health")

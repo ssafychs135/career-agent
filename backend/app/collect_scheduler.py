@@ -3,6 +3,7 @@ import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.collect.collector import collect
+from app.collect.verify import VERIFY_HOUR, verify_tick
 from app.collect.worker import worker_tick
 from app.notify.notifier import notify_tick
 from app.run_log import logged_run
@@ -65,6 +66,20 @@ async def notifier_job(get_ctx) -> None:
         )
 
 
+async def verify_job(get_ctx) -> None:
+    pool, http, activity = get_ctx()
+    async with pool.acquire() as conn:
+        settings = await get_settings(conn)
+        if not settings.enabled:
+            return
+        await logged_run(
+            conn, pipeline="verify", trigger="scheduled",
+            clear=lambda: activity.clear("verify"),
+            run=lambda: verify_tick(conn, http=http,
+                                    on_stage=lambda st, d, p: activity.set_stage("verify", st, d, str(p))),
+        )
+
+
 def start_collect_scheduler(app) -> None:
     """멱등. collector(cron 매일 collect_hour시)·worker(interval) 잡 등록.
 
@@ -82,6 +97,7 @@ def start_collect_scheduler(app) -> None:
     sched.add_job(worker_job, "interval", id="worker", minutes=5, args=[get_ctx])
     sched.add_job(notifier_job, "interval", id="notifier",
                   minutes=NOTIFY_INTERVAL_MIN, args=[get_ctx])
+    sched.add_job(verify_job, "cron", id="verify", hour=VERIFY_HOUR, minute=0, args=[get_ctx])
     sched.start()
     app.state.collect_scheduler = sched
     log.info("collect scheduler started")
