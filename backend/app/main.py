@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException
 from app import collect_scheduler, db
 from app.activity import Activity
 from app.claude_client import run_claude
+from app.logging_config import configure_logging
 from app.research import discord
 from app.routers import collect as collect_router
 from app.routers import db as db_router
@@ -18,6 +19,8 @@ from app.routers import status as status_router
 from app.routers import verify as verify_router
 from app.routers import research
 from app.settings_repo import get_settings
+
+configure_logging()  # import 시점 — 스케줄러·수집기 로그가 uvicorn 기동 전부터 살아있도록
 
 
 @asynccontextmanager
