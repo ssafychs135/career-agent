@@ -1,3 +1,5 @@
+import logging
+
 from app.collect.collector import dedupe, collect, INSERT_SQL
 from app.settings_repo import Settings, SETTINGS_DEFAULTS
 
@@ -133,6 +135,57 @@ async def test_collect_stops_source_on_network_error():
     conn = FakeConn()
     result = await collect(conn, s, http=FakeHttpNetworkError())
     assert result["scraped"] == 1  # 1p만 수집하고 중단(무한 재시도 방지)
+
+
+async def test_collect_logs_jumpit_network_failure(caplog):
+    """중단은 조용해선 안 된다 — 07-31 수집이 367→210건으로 잘렸는데 로그가 없어
+    어느 경로에서 끊겼는지 사후에 알 수 없었다."""
+    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["AI"], max_pages=5))
+    with caplog.at_level(logging.WARNING, logger="collect.collector"):
+        await collect(FakeConn(), s, http=FakeHttpNetworkError())
+    msgs = [r.getMessage() for r in caplog.records]
+    hit = [m for m in msgs if "점핏 요청 실패" in m]
+    assert hit, msgs
+    assert "AI" in hit[0] and "ConnectionError" in hit[0]  # 어느 키워드가 왜 끊겼는지
+    assert "1건" in hit[0]                                  # 끊긴 시점의 누적 수집량
+
+
+class FakeHttpWantedNetworkError:
+    """점핏은 빈 응답 · 원티드 요청에서 네트워크 예외."""
+    async def get(self, url, headers=None):
+        if "navigation/v1/results" in url:
+            raise ConnectionError("네트워크 끊김")
+        return FakeResp({"result": {"positions": []}, "data": []})
+
+
+async def test_collect_logs_wanted_network_failure(caplog):
+    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["AI"], max_pages=5))
+    with caplog.at_level(logging.WARNING, logger="collect.collector"):
+        await collect(FakeConn(), s, http=FakeHttpWantedNetworkError())
+    hit = [m for m in (r.getMessage() for r in caplog.records) if "원티드 요청 실패" in m]
+    assert hit, "원티드 쪽 중단도 점핏과 동일하게 남아야 한다"
+    assert "ConnectionError" in hit[0]
+
+
+class FakeHttpNonDictJumpit:
+    """점핏이 dict가 아닌 JSON을 돌려줌 — 프록시·CDN 오류 응답에서 실제로 가능하다."""
+    async def get(self, url, headers=None):
+        if "jumpit-api" in url:
+            return FakeResp(["예상 못한 형태"])
+        return FakeResp({"result": {"positions": []}, "data": []})
+
+
+async def test_collect_logs_malformed_payload_but_stays_quiet_on_empty_page(caplog):
+    """형식이 깨진 응답은 남기고, 정상적인 페이지 끝은 남기지 않는다(로그 노이즈 방지)."""
+    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["AI"], max_pages=5))
+    with caplog.at_level(logging.WARNING, logger="collect.collector"):
+        await collect(FakeConn(), s, http=FakeHttpNonDictJumpit())
+    assert [m for m in (r.getMessage() for r in caplog.records) if "응답 형식 이상" in m]
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="collect.collector"):
+        await collect(FakeConn(), s, http=FakeHttpMalformedJumpit())  # {"result": None}
+    assert caplog.records == [], "빈 페이지·정상 종료는 경고를 만들지 않아야 한다"
 
 
 class FakeHttpMalformedJumpit:
