@@ -43,6 +43,11 @@ test("notifier summary variants", () => {
     .toBe("발송 12건");
   expect(runSummary(item({ pipeline: "notifier", result: { sent: 12, skipped: 3 } })))
     .toBe("발송 12건 · 건너뜀 3");
+  // 발송 실패는 건별로 격리되어 틱이 계속 진행된다 — 몇 건이 밀렸는지 화면에 보여야 한다.
+  expect(runSummary(item({ pipeline: "notifier", result: { sent: 4, skipped: 0, failed: 2 } })))
+    .toBe("발송 4건 · 실패 2");
+  expect(runSummary(item({ pipeline: "notifier", result: { sent: 0, skipped: 1, failed: 3 } })))
+    .toBe("발송 0건 · 건너뜀 1 · 실패 3");
 });
 
 test("research summary variants", () => {

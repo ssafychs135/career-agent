@@ -1,5 +1,5 @@
 from app.notify.notifier import (
-    EMBED_COLOR, build_embed, chunk, passes_filter,
+    EMBED_COLOR, build_embed, passes_filter,
 )
 
 
@@ -67,11 +67,6 @@ def test_passes_filter_region_allowlist():
 
 def test_passes_filter_empty_arrays_pass_everything():
     assert passes_filter(_row(), [], []) is True
-
-
-def test_chunk_splits_on_boundary():
-    assert chunk(list(range(25)), 10) == [list(range(10)), list(range(10, 20)), [20, 21, 22, 23, 24]]
-    assert chunk([], 10) == []
 
 
 def test_notifier_select_excludes_dead_postings():

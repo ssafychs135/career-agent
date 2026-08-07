@@ -26,7 +26,10 @@ export function runSummary(it: RunLogItem): string {
   }
   if (it.pipeline === "notifier") {
     const skipped = Number(r.skipped ?? 0);
-    return `발송 ${r.sent ?? 0}건${skipped ? ` · 건너뜀 ${skipped}` : ""}`;
+    const failed = Number(r.failed ?? 0);
+    return `발송 ${r.sent ?? 0}건`
+      + (skipped ? ` · 건너뜀 ${skipped}` : "")
+      + (failed ? ` · 실패 ${failed}` : "");
   }
   if (it.pipeline === "verify") {
     const closed = Number(r.closed ?? 0);
