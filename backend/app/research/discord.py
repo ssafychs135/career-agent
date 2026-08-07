@@ -46,4 +46,10 @@ async def push_embeds(content: str | None, embeds: list[dict]) -> None:
         payload["content"] = content
     async with httpx.AsyncClient(timeout=15) as client:
         r = await client.post(url, json=payload, headers={"User-Agent": "career-agent"})
-        r.raise_for_status()
+        if r.is_error:
+            # raise_for_status를 쓰지 않는 이유 둘: (1) 디스코드의 거절 사유는 응답
+            # 본문에만 있는데 그것을 버려 운영 로그에 상태줄만 남았다. (2) httpx의
+            # 기본 메시지가 URL 전체를 실어 웹훅 토큰이 로그에 반복 노출됐다.
+            raise RuntimeError(
+                f"discord {r.status_code} (embeds={len(embeds)}): {r.text[:500]}"
+            )

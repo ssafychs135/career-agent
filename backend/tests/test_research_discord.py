@@ -77,7 +77,9 @@ async def test_push_embeds_posts_content_and_embeds(monkeypatch):
     sent = {}
 
     class FakeResp:
-        def raise_for_status(self): return None
+        is_error = False
+        status_code = 204
+        text = ""
 
     class FakeClient:
         async def __aenter__(self): return self
@@ -95,3 +97,50 @@ async def test_push_embeds_posts_content_and_embeds(monkeypatch):
     assert sent["url"] == "https://settings.example/hook"
     assert sent["json"]["content"] == "헤더"
     assert sent["json"]["embeds"] == [{"title": "t"}]
+
+
+def _failing_client(monkeypatch, discord, status, body):
+    class FakeResp:
+        is_error = True
+        status_code = status
+        text = body
+
+    class FakeClient:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, url, json=None, headers=None):
+            return FakeResp()
+
+    monkeypatch.setattr(discord.httpx, "AsyncClient", lambda **kw: FakeClient())
+
+
+async def test_push_embeds_error_carries_status_and_response_body(monkeypatch):
+    """디스코드의 거절 사유는 응답 본문에만 있다. raise_for_status는 그걸 버려서
+    운영 로그에 상태줄만 남았고, 500이 왜 나는지 알 수 없었다."""
+    import pytest
+    from app.research import discord
+    _failing_client(monkeypatch, discord, 500, '{"message": "무언가 잘못됨", "code": 50035}')
+    discord.set_webhook("https://settings.example/hook/tok")
+    try:
+        with pytest.raises(RuntimeError) as ei:
+            await discord.push_embeds(None, [{"title": "t"}])
+    finally:
+        discord.set_webhook("")
+    msg = str(ei.value)
+    assert "500" in msg
+    assert "무언가 잘못됨" in msg and "50035" in msg
+
+
+async def test_push_embeds_error_does_not_leak_webhook_token(monkeypatch):
+    """httpx 기본 에러는 URL 전체를 메시지에 넣어 웹훅 토큰이 로그에 찍혔다
+    (실패가 5분마다 반복되며 운영 로그에 계속 누적)."""
+    import pytest
+    from app.research import discord
+    _failing_client(monkeypatch, discord, 500, "boom")
+    discord.set_webhook("https://discord.example/api/webhooks/123/SUPERSECRETTOKEN")
+    try:
+        with pytest.raises(RuntimeError) as ei:
+            await discord.push_embeds(None, [{"title": "t"}])
+    finally:
+        discord.set_webhook("")
+    assert "SUPERSECRETTOKEN" not in str(ei.value)
