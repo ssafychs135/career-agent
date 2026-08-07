@@ -76,3 +76,24 @@ test("모델이 비어 있으면 칩을 그리지 않는다", async () => {
   await waitFor(() => expect(screen.getByTestId("job-title").textContent).toBe("백엔드 개발자"));
   expect(screen.queryByTestId("research-model")).toBeNull();
 });
+
+test("요약의 마크다운을 렌더링한다", async () => {
+  // claude 백엔드로 바꾼 뒤 요약이 완전한 마크다운 문서가 됐는데, 평문으로 출력해
+  // 화면에 '##'와 '**'가 글자 그대로 보였다.
+  (getJob as Mock).mockResolvedValue({
+    job: {
+      ...BASE_JOB,
+      summary: "## AI 풀스택 개발자\n\n**핵심 자격요건**\n\n- 개발 실무 경험 2년 이상\n- RESTful API 설계 경험",
+    },
+    companyResearch: null,
+    jobResearch: null,
+  });
+  render(<JobDetailView source="saramin" jobId="1" />);
+
+  await waitFor(() => expect(screen.getByRole("heading", { name: "AI 풀스택 개발자" })).toBeTruthy());
+  expect(screen.getByText("핵심 자격요건").tagName).toBe("STRONG");
+  expect(screen.getAllByRole("listitem").map((li) => li.textContent))
+    .toEqual(["개발 실무 경험 2년 이상", "RESTful API 설계 경험"]);
+  // 마크다운 기호가 글자 그대로 남아있으면 안 된다
+  expect(screen.queryByText(/\*\*|^##/)).toBeNull();
+});

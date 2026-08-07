@@ -22,11 +22,31 @@ SEND_GAP = 0.25         # 초
 # claude가 "**기술스택**:"으로 쓰면 예전 패턴이 못 잡아 설명에 중복 노출됐다.
 _STACK_LINE = re.compile(r"\n?[ \t]*[-*#>]*[ \t]*\**\s*기술스택\s*\**\s*[:：].*$", re.M)
 
+# claude 백엔드는 요약을 완전한 마크다운 문서로 쓴다(제목·볼드·목록·다중 섹션).
+# 로컬 모델의 평문 3줄을 전제하던 임베드 설명이 문서 제목만 보이고 잘리게 됐다.
+_HEADING = re.compile(r"^[ \t]*#{1,6}[ \t]*(.+?)[ \t]*#*[ \t]*$", re.M)
+_BLANKS = re.compile(r"\n{3,}")
+
+
+def summary_to_description(summary: str) -> str:
+    """요약을 디스코드 임베드 설명용으로 다듬는다.
+
+    첫 제목 줄은 임베드 title과 중복이라 버리고, 남은 제목은 볼드로 낮춘다
+    (디스코드가 #을 큰 제목으로 렌더링해 카드가 망가진다). 목록 기호는 그대로 둔다.
+    """
+    text = _STACK_LINE.sub("", summary or "", count=1).strip()
+    if not text:
+        return ""
+    head, _, rest = text.partition("\n")
+    if _HEADING.fullmatch(head):     # 문서 제목 줄 — 임베드 제목과 중복
+        text = rest.strip()
+    return _BLANKS.sub("\n\n", _HEADING.sub(r"**\1**", text)).strip()
+
 
 def build_embed(row: dict) -> dict:
     company = (row.get("company") or "").strip()
     title = (row.get("title") or "").strip()
-    desc = _STACK_LINE.sub("", row.get("summary") or "", count=1).strip()
+    desc = summary_to_description(row.get("summary") or "")
     if len(desc) > 400:
         desc = desc[:400] + "…"
     stacks = row.get("tech_stacks") or []

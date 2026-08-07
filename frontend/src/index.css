@@ -276,8 +276,19 @@ button:disabled { opacity: 0.45; cursor: default; }
 .lead-wrap { margin-top: 30px; }
 .lead {
   margin-top: 8px; padding-left: 16px; border-left: 3px solid var(--hairline);
-  white-space: pre-wrap; color: var(--text); font-size: 1.02rem; line-height: 1.72;
+  color: var(--text); font-size: 1.02rem; line-height: 1.72;
 }
+/* 요약은 마크다운으로 렌더링된다. 구조는 블록 요소가 잡고, pre-wrap은 문단 안쪽에만
+   남겨 로컬 모델 시절의 평문 3줄 요약도 줄바꿈이 유지되게 한다. */
+.lead p, .lead li { white-space: pre-wrap; }
+.lead > :first-child { margin-top: 0; }
+.lead > :last-child { margin-bottom: 0; }
+.lead h1, .lead h2, .lead h3, .lead h4 {
+  margin: 18px 0 6px; font-size: 1.04rem; letter-spacing: -0.01em;
+}
+.lead p { margin: 0 0 10px; }
+.lead ul, .lead ol { margin: 0 0 10px; padding-left: 20px; }
+.lead li { margin: 2px 0; }
 
 /* 리서치 — 항목별 박스 제거, hanging-label(라벨|본문) 문서 레이아웃 */
 .section-title {

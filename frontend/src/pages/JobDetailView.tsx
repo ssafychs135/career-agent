@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
+import ReactMarkdown from "react-markdown";
 import { getJob, type JobDetailResponse } from "../api";
 import { ResearchPanel } from "../ResearchPanel";
 import { SPRING_UI } from "../design/springs";
@@ -95,8 +96,9 @@ export default function JobDetailView({ source, jobId }: { source: string; jobId
       {job.summary && (
         <div className="lead-wrap">
           <div className="eyebrow-sm">요약</div>
-          {/* 요약의 1·2·3 줄바꿈(\n) 보존 */}
-          <div className="lead">{job.summary}</div>
+          {/* claude 백엔드는 요약을 마크다운 문서로 쓴다(제목·볼드·목록).
+              평문으로 두면 '##'와 '**'가 글자 그대로 보인다. */}
+          <div className="lead"><ReactMarkdown>{job.summary}</ReactMarkdown></div>
         </div>
       )}
 

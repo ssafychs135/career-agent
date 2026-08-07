@@ -1,6 +1,59 @@
 from app.notify.notifier import (
-    EMBED_COLOR, build_embed, passes_filter,
+    EMBED_COLOR, build_embed, passes_filter, summary_to_description,
 )
+
+
+# claude 백엔드로 바꾼 뒤 요약이 완전한 마크다운 문서로 바뀌었다 — 제목(#), 볼드,
+# 번호·불릿 목록, 다중 섹션. 로컬 모델 시절의 평문 3줄을 전제한 임베드 설명이
+# 문서 제목만 보여주고 잘리게 됐다.
+CLAUDE_SUMMARY = """# [인턴] AI Engineer @ 딥오토
+
+**업무 요약**
+1. 비정형 데이터를 정제하여 파이프라인을 구축
+
+
+## 핵심 자격요건
+- Python, PyTorch 능숙
+
+기술스택: Python, PyTorch"""
+
+
+def test_description_drops_leading_title_heading():
+    # 첫 제목 줄은 임베드 title("딥오토 — [인턴] AI Engineer")과 중복이라 자리 낭비다.
+    out = summary_to_description(CLAUDE_SUMMARY)
+    assert not out.startswith("#")
+    assert "AI Engineer @ 딥오토" not in out
+    assert out.startswith("**업무 요약**")
+
+
+def test_description_converts_headings_to_bold():
+    # 디스코드는 #을 큰 제목으로 렌더링해 카드가 망가진다. 볼드로 낮춘다.
+    out = summary_to_description(CLAUDE_SUMMARY)
+    assert "## 핵심 자격요건" not in out
+    assert "**핵심 자격요건**" in out
+
+
+def test_description_keeps_list_markers_and_drops_stack_line():
+    out = summary_to_description(CLAUDE_SUMMARY)
+    assert "1. 비정형 데이터를 정제하여 파이프라인을 구축" in out
+    assert "- Python, PyTorch 능숙" in out
+    assert "기술스택" not in out
+
+
+def test_description_collapses_excess_blank_lines():
+    out = summary_to_description(CLAUDE_SUMMARY)
+    assert "\n\n\n" not in out
+
+
+def test_description_leaves_plain_summaries_untouched():
+    """로컬 모델의 평문 요약은 그대로여야 한다 — 회귀 방지."""
+    assert summary_to_description("좋은 회사\n기술스택: python") == "좋은 회사"
+    assert summary_to_description("A\n\nB") == "A\n\nB"
+
+
+def test_description_handles_empty_and_heading_only():
+    assert summary_to_description("") == ""
+    assert summary_to_description("# 제목뿐") == ""
 
 
 def _row(**kw):
