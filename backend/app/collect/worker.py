@@ -1,3 +1,4 @@
+from app.claude_client import ClaudeAuthError
 from app.collect.detail import detail_url, parse_detail
 from app.collect.config import DETAIL_TIMEOUT, JOB_PROXY_SECRET, JOB_PROXY_URL
 from app.collect.health import llm_healthy
@@ -23,6 +24,11 @@ _DONE_SQL = (
 _RETRY_SQL = (
     "UPDATE jobs SET status=CASE WHEN attempts+1 >= $1 THEN 'failed' ELSE 'pending' END, "
     "attempts=attempts+1, updated_at=now() WHERE id=$2"
+)
+# 점유를 풀기만 한다 — attempts는 그대로. 공고 탓이 아닌 실패(인증 만료)용.
+_RELEASE_SQL = (
+    "UPDATE jobs SET status='pending', updated_at=now() "
+    "WHERE id = ANY($1::bigint[]) AND status='processing'"
 )
 
 
@@ -78,6 +84,12 @@ async def worker_tick(conn, settings, *, http, summarizer=summarize,
             on_stage("요약 중", f"{job.get('company') or ''} · {title}", f"{i+1}/{len(batch)}")
         try:
             content = await summarizer(prompt, settings, http=http, model=model)
+        except ClaudeAuthError:
+            # 인증이 풀리면 남은 공고도 전부 같은 이유로 실패한다. 재시도 횟수를 깎으면
+            # 장애가 길어질 때 공고가 failed로 묻히므로(수동 복구 필요), 이 공고와 남은
+            # 배치를 pending으로 되돌리고 실행을 실패로 올린다(→ run_log·디스코드 경보).
+            await conn.execute(_RELEASE_SQL, [j["id"] for j in batch[i:]])
+            raise
         except Exception:  # noqa: BLE001 — 요약 실패도 상세 실패와 동일하게 재시도 캡으로
             content = None
         if content:

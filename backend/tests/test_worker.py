@@ -1,3 +1,6 @@
+import pytest
+
+from app.claude_client import ClaudeAuthError
 from app.collect.worker import worker_tick, CLAIM_SQL
 from app.settings_repo import Settings, SETTINGS_DEFAULTS
 
@@ -162,3 +165,28 @@ async def test_worker_local_backend_never_escalates_on_retry():
                           http=Http(_DETAIL), summarizer=summ, health=_up)
     assert r["done"] == 1
     assert r["escalated"] == 0
+
+
+async def test_worker_auth_error_releases_batch_without_spending_attempts():
+    """인증 만료는 공고 탓이 아니다 — 재시도 횟수를 깎으면 장애가 길어질 때 전부 failed로
+    묻힌다. 남은 배치를 그대로 pending으로 돌려놓고, 실행 자체를 실패로 올려 알린다."""
+    claimed = [{"id": i, "source": "jumpit", "job_id": str(i), "company": "A",
+                "title": "T", "attempts": 0} for i in (1, 2, 3)]
+    conn = Conn(claimed)
+    calls = []
+
+    async def summ(prompt, settings, *, http, model="", on_step=None):
+        calls.append(prompt)
+        if len(calls) == 1:
+            return "요약본\n기술스택: Go"
+        raise ClaudeAuthError("Failed to authenticate: OAuth session expired")
+
+    with pytest.raises(ClaudeAuthError):
+        await worker_tick(conn, _settings(summary_backend="claude"), http=Http(_DETAIL),
+                          summarizer=summ, health=_up)
+
+    assert len(calls) == 2  # 인증이 풀린 뒤로는 남은 공고에 claude를 부르지 않는다
+    (done_sql, done_args), (release_sql, release_args) = conn.updates
+    assert "status='done'" in done_sql and done_args[-1] == 1  # 성공분은 그대로 반영
+    assert "status='pending'" in release_sql and "attempts" not in release_sql
+    assert release_args == ([2, 3],)  # 실패한 공고와 아직 안 본 공고 모두 되돌림
