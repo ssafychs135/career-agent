@@ -6,11 +6,15 @@ from app.run_log import classify, logged_run
 
 
 class FakeConn:
-    def __init__(self):
+    def __init__(self, prev=None):
         self.executed = []  # (sql, args)
+        self.prev = prev    # 직전 스케줄 실행 행(없으면 None)
 
     async def execute(self, sql, *args):
         self.executed.append((sql, args))
+
+    async def fetchrow(self, sql, *args):
+        return self.prev
 
 
 def _run(value):
@@ -101,3 +105,39 @@ async def test_success_with_record_error_is_not_misclassified(monkeypatch):
         await logged_run(FailingRecordConn(), pipeline="collector", trigger="scheduled",
                          run=_run({"scraped": 1, "inserted": 1}))
     assert pushed == []  # 성공 실행이므로 실패 알림 없음
+
+
+async def _scheduled_failure(monkeypatch, prev, error):
+    pushed = []
+    async def fake_push(msg):
+        pushed.append(msg)
+    monkeypatch.setattr("app.run_log.push", fake_push)
+    conn = FakeConn(prev=prev)
+    async def boom():
+        raise RuntimeError(error)
+    with pytest.raises(RuntimeError):
+        await logged_run(conn, pipeline="worker", trigger="scheduled", run=boom)
+    assert conn.executed[0][1][4] == "failed"  # 알림을 생략해도 기록은 남는다
+    return pushed
+
+
+_AUTH = "Failed to authenticate: OAuth session expired and could not be refreshed"
+
+
+async def test_repeated_scheduled_failure_with_same_error_is_not_pushed_again(monkeypatch):
+    """워커는 5분마다 돈다. 인증 장애가 이어지는 동안 같은 경보를 하루 288번 보내지 않는다."""
+    pushed = await _scheduled_failure(
+        monkeypatch, prev={"status": "failed", "error": _AUTH}, error=_AUTH)
+    assert pushed == []
+
+
+async def test_scheduled_failure_with_new_error_is_pushed(monkeypatch):
+    pushed = await _scheduled_failure(
+        monkeypatch, prev={"status": "failed", "error": "llm down"}, error=_AUTH)
+    assert pushed and _AUTH[:40] in pushed[0]
+
+
+async def test_scheduled_failure_after_success_is_pushed(monkeypatch):
+    pushed = await _scheduled_failure(
+        monkeypatch, prev={"status": "ok", "error": ""}, error=_AUTH)
+    assert pushed and "요약 처리" in pushed[0]
