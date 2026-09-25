@@ -1,7 +1,7 @@
 import asyncio
 import json
 import pytest
-from app.claude_client import run_claude, stream_label
+from app.claude_client import ClaudeAuthError, ClaudeError, run_claude, stream_label
 
 
 def _lines(*events: dict) -> bytes:
@@ -117,3 +117,34 @@ async def test_run_claude_keeps_allowed_tools_alongside_model(monkeypatch):
     args = seen["args"]
     assert args[args.index("--model") + 1] == "opus"
     assert args[args.index("--allowedTools") + 1] == "WebSearch"
+
+
+# 인증이 풀려도 CLI는 subtype "success"로 끝내고 is_error만 켠다(로컬 재현으로 확인).
+# 예전엔 이 오류 문구를 정상 응답으로 돌려줘, 요약 65건이 오류 문구로 저장되고 발송됐다.
+_AUTH_EXPIRED = "Failed to authenticate: OAuth session expired and could not be refreshed"
+_NOT_LOGGED_IN = "Not logged in · Please run /login"
+
+
+@pytest.mark.parametrize("text", [_AUTH_EXPIRED, _NOT_LOGGED_IN])
+async def test_run_claude_raises_auth_error_on_is_error_result(monkeypatch, text):
+    out = _lines({"type": "result", "subtype": "success", "is_error": True, "result": text})
+    async def fake_exec(*a, **k): return FakeProc(out)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    with pytest.raises(ClaudeAuthError, match="authenticate|login"):
+        await run_claude("hi")
+
+
+async def test_run_claude_raises_claude_error_on_other_is_error_result(monkeypatch):
+    out = _lines({"type": "result", "subtype": "success", "is_error": True,
+                  "result": "Prompt is too long"})
+    async def fake_exec(*a, **k): return FakeProc(out)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    with pytest.raises(ClaudeError, match="Prompt is too long") as ei:
+        await run_claude("hi")
+    assert not isinstance(ei.value, ClaudeAuthError)
+
+
+def test_claude_errors_stay_runtime_errors():
+    """기존 호출자의 except RuntimeError·Exception 경로가 그대로 잡아야 한다."""
+    assert issubclass(ClaudeError, RuntimeError)
+    assert issubclass(ClaudeAuthError, ClaudeError)

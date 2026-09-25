@@ -16,6 +16,14 @@ _INSERT = (
     "VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10)"
 )
 _PRUNE = "DELETE FROM run_log WHERE finished_at < now() - interval '30 days'"
+_PREV_SCHEDULED = (
+    "SELECT status, error FROM run_log WHERE pipeline = $1 AND trigger = 'scheduled' "
+    "ORDER BY finished_at DESC LIMIT 1"
+)
+
+
+def _headline(error: str) -> str:
+    return error.splitlines()[0][:200] if error else ""
 
 
 def classify(pipeline: str, result: Any) -> str:
@@ -37,11 +45,18 @@ async def record(conn, *, pipeline: str, ref: str, label: str, trigger: str,
 
 
 async def _finish(conn, *, pipeline, trigger, ref, label, status, result, error, started):
+    alert = status == "failed" and trigger == "scheduled"
+    if alert:
+        # 직전 스케줄 실행이 같은 이유로 실패했으면 이미 알린 장애다. 워커는 5분마다
+        # 돌아서, 인증 만료 같은 지속 장애가 경보를 쏟아내게 된다. 기록은 그대로 남긴다.
+        # (기록 전에 조회해야 방금 실패한 이 실행이 '직전'으로 잡히지 않는다.)
+        prev = await conn.fetchrow(_PREV_SCHEDULED, pipeline)
+        if prev and prev["status"] == "failed" and _headline(prev["error"]) == _headline(error):
+            alert = False
     await record(conn, pipeline=pipeline, ref=ref, label=label, trigger=trigger,
                  status=status, result=result, error=error, started=started)
-    if status == "failed" and trigger == "scheduled":
-        first = error.splitlines()[0][:200] if error else ""
-        await push(f"⚠️ 스케줄 {_KO.get(pipeline, pipeline)} 실패 · {first}")
+    if alert:
+        await push(f"⚠️ 스케줄 {_KO.get(pipeline, pipeline)} 실패 · {_headline(error)}")
 
 
 async def logged_run(conn, *, pipeline: str, trigger: str, ref: str = "", label: str = "",

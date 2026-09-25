@@ -1,6 +1,25 @@
 import asyncio
 import json
+import re
 from urllib.parse import urlparse
+
+
+class ClaudeError(RuntimeError):
+    """claude가 오류 결과(is_error)를 돌려줬다. 결과 문구가 메시지다."""
+
+
+class ClaudeAuthError(ClaudeError):
+    """구독 인증이 풀렸다 — 공고 하나의 문제가 아니라 모든 호출이 실패한다."""
+
+
+# 실측 문구: "Failed to authenticate: OAuth session expired and could not be refreshed"(운영),
+# "Not logged in · Please run /login"(설정 디렉터리가 빈 상태로 재현).
+_AUTH_ERROR = re.compile(r"authenticat|not logged in|/login|oauth|invalid api key", re.I)
+
+
+def _error_for(text: str) -> ClaudeError:
+    cls = ClaudeAuthError if _AUTH_ERROR.search(text) else ClaudeError
+    return cls(text[:500])
 
 
 def stream_label(event: dict) -> str | None:
@@ -42,9 +61,12 @@ async def run_claude(
     )
 
     result: str | None = None
+    # CLI는 실패해도 subtype "success"로 끝내고 오류 문구를 result에 담는다.
+    # is_error만이 신호다 — 무시하면 오류 문구가 정상 응답으로 저장된다.
+    is_error = False
 
     async def _consume():
-        nonlocal result
+        nonlocal result, is_error
         async for raw in proc.stdout:
             line = raw.decode(errors="replace").strip()
             if not line:
@@ -55,6 +77,7 @@ async def run_claude(
                 continue  # 비JSON/잘린 라인 무시
             if event.get("type") == "result":
                 result = event.get("result")
+                is_error = bool(event.get("is_error"))
             elif on_step is not None:
                 label = stream_label(event)
                 if label:
@@ -71,6 +94,8 @@ async def run_claude(
         proc.kill()  # 프로세스는 정리하되 이미 받은 result는 버리지 않음
 
     if result is not None:
+        if is_error:
+            raise _error_for(result)
         return result
     if proc.returncode not in (0, None):
         err = (await proc.stderr.read()).decode()[:500]
