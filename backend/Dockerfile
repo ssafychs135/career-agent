@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 
 WORKDIR /app
 RUN pip install --no-cache-dir "fastapi>=0.115" "uvicorn[standard]>=0.32" \
-    "asyncpg>=0.30" "alembic>=1.13" "sqlalchemy>=2.0" "httpx>=0.27" "apscheduler>=3.10"
+    "asyncpg>=0.30" "alembic>=1.13" "sqlalchemy[asyncio]>=2.0" "httpx>=0.27" "apscheduler>=3.10"
 COPY app ./app
 COPY alembic.ini ./alembic.ini
 COPY migrations ./migrations
