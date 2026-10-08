@@ -1,10 +1,14 @@
 FROM python:3.12-slim
 
 # Node.js(claude-code 런타임) + claude-code CLI
+# 버전을 고정한다: llm_tier의 별칭(haiku/sonnet/opus)이 어떤 모델로 풀리는지는 CLI 버전이
+# 정한다. 미고정이면 레이어 캐시가 첫 빌드 버전에 멈춰 모델이 조용히 구세대로 남는다.
+# 2.1.293(npm latest) → haiku=claude-haiku-5-5, sonnet=claude-sonnet-5-5, opus=claude-opus-5-5
+ARG CLAUDE_CODE_VERSION=2.1.293
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
  && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
  && apt-get install -y --no-install-recommends nodejs \
- && npm install -g @anthropic-ai/claude-code \
+ && npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
  && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
