@@ -5,7 +5,7 @@ import Filters from "./Filters";
 const SETTINGS = {
   keywords: ["백엔드"], allowed_wanted_categories: [518], max_career_years: 2,
   max_pages: 9999, collect_hour: 9, batch_size: 20, model: "kanana",
-  summary_backend: "local", max_attempts: 5, worker_interval_min: 5,
+  summary_backend: "claude", max_attempts: 5, worker_interval_min: 5,
   enabled: false, discord_webhook_url: "",
   allowed_regions: [] as string[], hidden_companies: [] as string[],
   summary_model: "", research_model: "",

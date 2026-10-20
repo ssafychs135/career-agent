@@ -5,8 +5,9 @@ export interface Settings {
   max_pages: number;
   collect_hour: number;
   batch_size: number;
+  // Round-trip legacy schema metadata; no editable local backend/model controls.
   model: string;
-  summary_backend: "local" | "claude";
+  summary_backend: "claude";
   max_attempts: number;
   worker_interval_min: number;
   enabled: boolean;

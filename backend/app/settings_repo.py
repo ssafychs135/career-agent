@@ -9,7 +9,7 @@ SETTINGS_DEFAULTS = dict(
     keywords=["백엔드"],  # 비어 있으면 안 됨: _clean_keywords가 []를 거부(무레코드 시 get_settings 폴백에 사용)
     allowed_wanted_categories=[518, 507], max_career_years=2,
     max_pages=9999, collect_hour=9, batch_size=20,
-    model="kanana-1.5-8b-instruct-2505-mlx", summary_backend="local",
+    model="kanana-1.5-8b-instruct-2505-mlx", summary_backend="claude",
     max_attempts=5, worker_interval_min=5, enabled=False, discord_webhook_url="",
     allowed_regions=[], hidden_companies=[],
     notify_enabled=False,
@@ -34,8 +34,9 @@ class Settings(BaseModel):
     max_pages: int = Field(ge=1)
     collect_hour: int = Field(ge=0, le=23)
     batch_size: int = Field(ge=1, le=100)
+    # Legacy DB/API field retained for schema and rollback compatibility; not used by Claude.
     model: str = Field(min_length=1)
-    summary_backend: Literal["local", "claude"]
+    summary_backend: Literal["claude"]
     max_attempts: int = Field(ge=1, le=20)
     worker_interval_min: int = Field(ge=1)
     enabled: bool
@@ -49,6 +50,13 @@ class Settings(BaseModel):
     summary_model: str = ""
     research_model: str = ""
     updated_at: Optional[datetime] = None
+
+    @field_validator("summary_backend", mode="before")
+    @classmethod
+    def _effective_backend(cls, v):
+        # Accept only the formerly valid backend, not arbitrary invalid values.
+        # Parsing a stored row is read-only; an ordinary PUT persists "claude".
+        return "claude" if v == "local" else v
 
     @field_validator("keywords")
     @classmethod

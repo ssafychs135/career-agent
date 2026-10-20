@@ -5,12 +5,12 @@ import App from "./App";
 const STATUS = {
   activity: { collector: null, worker: null, research: [] },
   counts: { pending: 0, done: 0, failed: 0, skipped: 0, research_running: 0 },
-  llm_health: "ok", enabled: true, next_ticks: { collect_hour: 9, worker_interval_min: 5 },
+  enabled: true, next_ticks: { collect_hour: 9, worker_interval_min: 5 },
 };
 const SETTINGS = {
   keywords: ["백엔드"], allowed_wanted_categories: [518], max_career_years: 2,
   max_pages: 9999, collect_hour: 9, batch_size: 20, model: "kanana",
-  summary_backend: "local", max_attempts: 5, worker_interval_min: 5,
+  summary_backend: "claude", max_attempts: 5, worker_interval_min: 5,
   enabled: true, discord_webhook_url: "",
 };
 

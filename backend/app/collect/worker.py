@@ -1,7 +1,6 @@
 from app.claude_client import ClaudeAuthError
 from app.collect.detail import detail_url, parse_detail
 from app.collect.config import DETAIL_TIMEOUT, JOB_PROXY_SECRET, JOB_PROXY_URL
-from app.collect.health import llm_healthy
 from app.collect.summarize import extract_stacks, summarize
 from app.llm_tier import resolve
 
@@ -50,12 +49,7 @@ async def _fetch_detail(http, source, job_id):
 
 
 async def worker_tick(conn, settings, *, http, summarizer=summarize,
-                      health=llm_healthy, on_stage=None) -> dict:
-    # LM Studio 헬스는 local 백엔드일 때만 본다. claude 요약은 맥 상태와 무관하며,
-    # 여기에 묶어두면 맥이 꺼졌을 때 claude 요약까지 같이 멈춘다.
-    if settings.summary_backend == "local" and not await health(http):
-        return {"claimed": 0, "done": 0, "failed": 0, "escalated": 0, "skipped_tick": True}
-
+                      on_stage=None) -> dict:
     batch = await claim_batch(conn, settings.batch_size)
     if on_stage and batch:
         on_stage("배치 점유", f"{len(batch)}건", 0)
@@ -72,11 +66,9 @@ async def worker_tick(conn, settings, *, http, summarizer=summarize,
             failed += 1
             continue
         prompt = f"제목: {title}\n회사: {job.get('company') or ''}\n\n{body}"
-        # 전에 실패한 적 있는 잡은 한 단계 위 티어로 재시도한다. 단 승급은 claude
-        # 백엔드에서만 의미가 있다 — local 분기는 model 인자를 무시하므로, local
-        # 모드에서 escalated를 세면 실행 로그에 없던 "·승급" 라벨이 붙는다.
-        # attempts는 상세조회 실패로도 오르지만, 그 부정확은 드물고 무해하다.
-        is_retry = job["attempts"] > 0 and settings.summary_backend == "claude"
+        # Failed jobs retry one Claude tier higher, including normalized legacy settings.
+        # Detail failures also increment attempts, as before.
+        is_retry = job["attempts"] > 0
         model = resolve("summary", settings.summary_model, escalated=is_retry)
         if is_retry:
             escalated += 1

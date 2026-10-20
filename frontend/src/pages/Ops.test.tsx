@@ -5,7 +5,7 @@ import Ops from "./Ops";
 const SETTINGS = {
   keywords: ["백엔드"], allowed_wanted_categories: [518], max_career_years: 2,
   max_pages: 9999, collect_hour: 9, batch_size: 20, model: "kanana",
-  summary_backend: "local", max_attempts: 5, worker_interval_min: 5,
+  summary_backend: "claude", max_attempts: 5, worker_interval_min: 5,
   enabled: false, discord_webhook_url: "",
   notify_enabled: false,
   summary_model: "", research_model: "",
@@ -13,7 +13,7 @@ const SETTINGS = {
 const STATUS = {
   activity: { collector: null, worker: { stage: "요약 중", detail: "토스 · 백엔드", progress: "4/20" }, research: [] },
   counts: { pending: 7, done: 3, failed: 0, skipped: 0, research_running: 1 },
-  llm_health: "ok", enabled: true, next_ticks: { collect_hour: 9, worker_interval_min: 5 },
+  enabled: true, next_ticks: { collect_hour: 9, worker_interval_min: 5 },
 };
 
 let putBody: Record<string, unknown> | null = null;
@@ -49,7 +49,7 @@ test("summary strip merges health probes and live status", async () => {
   render(<Ops />);
   await waitFor(() => expect(screen.getByText("API ok")).toBeTruthy());
   expect(screen.getByText("Claude ok")).toBeTruthy();
-  expect(screen.getByText("LLM ok")).toBeTruthy();
+  expect(screen.queryByText(/^LLM /)).toBeNull();
   expect(screen.getByText(/백로그 7/)).toBeTruthy();
   // 라이브 파이프라인 — 실행 중 워커
   expect(screen.getByText("요약 중")).toBeTruthy();
@@ -141,4 +141,21 @@ test("요약·리서치 모델을 선택해 저장한다", async () => {
   await waitFor(() => expect(putBody).not.toBeNull());
   expect(putBody!.summary_model).toBe("sonnet");
   expect(putBody!.research_model).toBe("opus");
+  expect(putBody!.summary_backend).toBe("claude");
+  expect(putBody!.model).toBe("kanana");
+});
+
+
+test("local controls absent; legacy metadata round-trips on save", async () => {
+  render(<Ops />);
+  await screen.findByLabelText("요약 모델");
+  expect(screen.queryByText("요약 백엔드")).toBeNull();
+  expect(screen.queryByText("로컬 LLM")).toBeNull();
+  expect(screen.queryByLabelText("로컬 모델")).toBeNull();
+  expect(screen.queryByText(/^LLM /)).toBeNull();
+  fireEvent.change(screen.getByLabelText("배치 크기"), { target: { value: "25" } });
+  fireEvent.click(screen.getByRole("button", { name: "저장" }));
+  await waitFor(() => expect(putBody?.batch_size).toBe(25));
+  expect(putBody!.model).toBe("kanana");
+  expect(putBody!.summary_backend).toBe("claude");
 });

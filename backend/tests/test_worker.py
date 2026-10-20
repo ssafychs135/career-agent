@@ -27,21 +27,20 @@ def _settings(**o):
     return Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"], **o))
 
 
-async def test_worker_skips_when_llm_down():
-    conn = Conn([])
-    async def down(http, base_url=None): return False
-    r = await worker_tick(conn, _settings(), http=Http({}), health=down)
-    assert r["skipped_tick"] is True
-    assert conn.updates == []
+async def test_worker_empty_batch_does_not_probe_llm():
+    class NoHttp:
+        async def get(self, *args, **kwargs):
+            raise AssertionError("no local health probe")
+    r = await worker_tick(Conn([]), _settings(summary_backend="local"), http=NoHttp())
+    assert r == {"claimed": 0, "done": 0, "failed": 0, "escalated": 0, "skipped_tick": False}
 
 
 async def test_worker_summarizes_and_marks_done():
     claimed = [{"id": 1, "source": "jumpit", "job_id": "5", "company": "A", "title": "T", "attempts": 0}]
     conn = Conn(claimed)
     http = Http({"result": {"responsibility": "일", "qualifications": "q", "preferredRequirements": "p"}})
-    async def up(http, base_url=None): return True
     async def summ(prompt, settings, *, http, model="", on_step=None): return "요약본\n기술스택: Go"
-    r = await worker_tick(conn, _settings(), http=http, summarizer=summ, health=up)
+    r = await worker_tick(conn, _settings(), http=http, summarizer=summ)
     assert r["done"] == 1 and r["failed"] == 0
     done_sql = conn.updates[-1][0]
     assert "status='done'" in done_sql
@@ -51,9 +50,8 @@ async def test_worker_retry_cap_marks_failed_on_empty():
     claimed = [{"id": 1, "source": "jumpit", "job_id": "5", "company": "A", "title": "T", "attempts": 4}]
     conn = Conn(claimed)
     http = Http({"result": {"responsibility": "일", "qualifications": "q", "preferredRequirements": "p"}})
-    async def up(http, base_url=None): return True
     async def summ(prompt, settings, *, http, model="", on_step=None): return None  # 빈 응답
-    r = await worker_tick(conn, _settings(max_attempts=5), http=http, summarizer=summ, health=up)
+    r = await worker_tick(conn, _settings(max_attempts=5), http=http, summarizer=summ)
     assert r["failed"] == 1
     assert "failed" in conn.updates[-1][0]
 
@@ -62,9 +60,8 @@ async def test_worker_summarizer_error_routes_to_retry():
     claimed = [{"id": 1, "source": "jumpit", "job_id": "5", "company": "A", "title": "T", "attempts": 0}]
     conn = Conn(claimed)
     http = Http({"result": {"responsibility": "일", "qualifications": "q", "preferredRequirements": "p"}})
-    async def up(http, base_url=None): return True
     async def boom(prompt, settings, *, http, model="", on_step=None): raise RuntimeError("llm error mid-call")
-    r = await worker_tick(conn, _settings(), http=http, summarizer=boom, health=up)
+    r = await worker_tick(conn, _settings(), http=http, summarizer=boom)
     assert r["failed"] == 1 and r["done"] == 0
     assert "attempts=attempts+1" in conn.updates[-1][0]  # 재시도 SQL 적용, 크래시 없음
 
@@ -77,10 +74,6 @@ def _claimed(attempts: int):
              "title": "T", "attempts": attempts}]
 
 
-async def _up(http, base_url=None):
-    return True
-
-
 async def test_worker_uses_base_tier_for_fresh_job():
     conn = Conn(_claimed(0))
     seen = {}
@@ -90,7 +83,7 @@ async def test_worker_uses_base_tier_for_fresh_job():
         return "요약\n기술스택: Go"
 
     r = await worker_tick(conn, _settings(summary_backend="claude"),
-                          http=Http(_DETAIL), summarizer=summ, health=_up)
+                          http=Http(_DETAIL), summarizer=summ)
     assert seen["model"] == "haiku"
     assert r["escalated"] == 0
 
@@ -104,7 +97,7 @@ async def test_worker_escalates_previously_failed_job():
         return "요약\n기술스택: Go"
 
     r = await worker_tick(conn, _settings(summary_backend="claude"),
-                          http=Http(_DETAIL), summarizer=summ, health=_up)
+                          http=Http(_DETAIL), summarizer=summ)
     assert seen["model"] == "sonnet"
     assert r["escalated"] == 1
 
@@ -118,53 +111,29 @@ async def test_worker_setting_override_shifts_the_whole_ladder():
         return "요약"
 
     await worker_tick(conn, _settings(summary_backend="claude", summary_model="sonnet"),
-                      http=Http(_DETAIL), summarizer=summ, health=_up)
+                      http=Http(_DETAIL), summarizer=summ)
     assert seen["model"] == "opus"
 
 
-async def test_worker_does_not_health_check_when_backend_is_claude():
-    """회귀: claude 요약이 LM Studio 헬스에 묶이면 맥이 꺼졌을 때 같이 멈춘다."""
-    conn = Conn(_claimed(0))
-    calls = []
-
-    async def down(http, base_url=None):
-        calls.append(1)
-        return False
-
-    async def summ(prompt, settings, *, http, model="", on_step=None):
+@pytest.mark.parametrize("attempts, tier", [(0, "haiku"), (1, "sonnet")])
+async def test_worker_legacy_local_uses_claude_tier_without_health_gate(attempts, tier):
+    conn = Conn(_claimed(attempts))
+    urls = []
+    class DetailOnly(Http):
+        async def get(self, url, **kwargs):
+            assert "/v1/models" not in url
+            urls.append(url)
+            return await super().get(url, **kwargs)
+    async def summ(prompt, settings, *, http, model="", **kwargs):
+        assert settings.summary_backend == "claude"
+        assert model == tier
         return "요약"
-
-    r = await worker_tick(conn, _settings(summary_backend="claude"),
-                          http=Http(_DETAIL), summarizer=summ, health=down)
-    assert calls == []                 # 호출 자체가 없어야 한다
+    r = await worker_tick(conn, _settings(summary_backend="local"),
+                          http=DetailOnly(_DETAIL), summarizer=summ)
+    assert len(urls) == 1
+    assert r["done"] == 1
+    assert r["escalated"] == int(attempts > 0)
     assert r["skipped_tick"] is False
-    assert r["done"] == 1
-
-
-async def test_worker_still_health_gates_local_backend():
-    conn = Conn([])
-
-    async def down(http, base_url=None):
-        return False
-
-    r = await worker_tick(conn, _settings(summary_backend="local"),
-                          http=Http(_DETAIL), health=down)
-    assert r["skipped_tick"] is True
-    assert r["escalated"] == 0
-    assert conn.updates == []
-
-
-async def test_worker_local_backend_never_escalates_on_retry():
-    """회귀: local 백엔드는 티어 개념이 없으므로, 재시도 잡이어도 승급 카운트가 오르면 안 된다."""
-    conn = Conn(_claimed(1))
-
-    async def summ(prompt, settings, *, http, model="", on_step=None):
-        return "요약\n기술스택: Go"
-
-    r = await worker_tick(conn, _settings(summary_backend="local"),
-                          http=Http(_DETAIL), summarizer=summ, health=_up)
-    assert r["done"] == 1
-    assert r["escalated"] == 0
 
 
 async def test_worker_auth_error_releases_batch_without_spending_attempts():
@@ -183,7 +152,7 @@ async def test_worker_auth_error_releases_batch_without_spending_attempts():
 
     with pytest.raises(ClaudeAuthError):
         await worker_tick(conn, _settings(summary_backend="claude"), http=Http(_DETAIL),
-                          summarizer=summ, health=_up)
+                          summarizer=summ)
 
     assert len(calls) == 2  # 인증이 풀린 뒤로는 남은 공고에 claude를 부르지 않는다
     (done_sql, done_args), (release_sql, release_args) = conn.updates

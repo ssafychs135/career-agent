@@ -6,7 +6,6 @@ import {
   getSettings, putSettings, runCollect, runNotify, runWorker, type Settings as S,
 } from "../settingsApi";
 import ChipInput from "../components/ChipInput";
-import Segmented from "../components/Segmented";
 import { SPRING_UI, stagger } from "../design/springs";
 import { getRuns, type RunLogItem } from "../runsApi";
 import { pipelineLabel, triggerLabel, statusClass, runSummary, durationLabel, relativeTime } from "../runsFormat";
@@ -117,7 +116,6 @@ export default function Ops() {
         initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={SPRING_UI}>
         <span className={probeClass(api)}>API {api.value}</span>
         <span className={probeClass(claude)}>Claude {claude.value}</span>
-        {status && <span className={status.llm_health === "ok" ? "pill pill-good" : "pill pill-bad"}>LLM {status.llm_health}</span>}
         {status && <span className="pill">백로그 {status.counts.pending}</span>}
         {status && <span className={status.enabled ? "pill pill-good" : "pill"}>{status.enabled ? "수집 ON" : "수집 OFF"}</span>}
       </motion.div>
@@ -134,7 +132,7 @@ export default function Ops() {
               </label>
               <span className="sp" />
               <button onClick={() => doRun(runCollect, (r) => `수집 완료 · 스크레이핑 ${r.scraped} · 적재 ${r.inserted}`)} disabled={dirty || busy}>지금 수집</button>
-              <button onClick={() => doRun(runWorker, (r) => r.skipped_tick ? "요약 처리 건너뜀 · LLM 대기 중" : `요약 처리 완료 · ${r.done}건${r.failed ? ` · 실패 ${r.failed}` : ""}`)} disabled={dirty || busy}>요약 처리 1회</button>
+              <button onClick={() => doRun(runWorker, (r) => r.skipped_tick ? "요약 처리 건너뜀" : `요약 처리 완료 · ${r.done}건${r.failed ? ` · 실패 ${r.failed}` : ""}`)} disabled={dirty || busy}>요약 처리 1회</button>
               <span className="caption">{dirty ? "먼저 저장하세요" : runMsg}</span>
             </div>
           )}
@@ -202,16 +200,6 @@ export default function Ops() {
               <span className="rl">워커 주기(분)</span>
               <input className="control" aria-label="워커 주기" type="number" value={form.worker_interval_min} onChange={num("worker_interval_min")} />
               <span className="hint">저장 시 즉시 재적용</span>
-            </label>
-            <div className="form-row">
-              <span className="rl">요약 백엔드</span>
-              <div className="control"><Segmented value={form.summary_backend}
-                options={[{ label: "로컬 LLM", value: "local" }, { label: "claude", value: "claude" }]}
-                onChange={(v) => set("summary_backend", v)} /></div>
-            </div>
-            <label className="form-row">
-              <span className="rl">로컬 모델</span>
-              <input className="control" aria-label="로컬 모델" type="text" value={form.model} onChange={(e) => set("model", e.target.value)} />
             </label>
             <label className="form-row">
               <span className="rl">요약 모델</span>
