@@ -17,10 +17,7 @@ services:
       timeout: 3s
       retries: 10
     networks:
-      default:
-      jobs_shared:
-        aliases:
-          - postgres          # n8n이 기존 자격증명(host=postgres) 그대로 여기 접속
+      - default
     restart: unless-stopped
 
   migrate:
@@ -44,8 +41,7 @@ services:
     user: "${HOST_UID:-1001}:${HOST_UID:-1001}"   # A1 ubuntu uid (Task 6에서 검증)
     environment:
       - DATABASE_URL=${DATABASE_URL}
-      # 수집 워커(요약 LLM·프록시) — 컷오버(enabled=true) 전엔 미사용, /status 헬스체크엔 사용
-      - LLM_BASE_URL=${LLM_BASE_URL}
+      # 원티드 수집 프록시 — 요약·리서치는 Claude CLI 사용
       - JOB_PROXY_URL=${JOB_PROXY_URL}
       - JOB_PROXY_SECRET=${JOB_PROXY_SECRET}
     volumes:
@@ -60,7 +56,6 @@ services:
         condition: service_completed_successfully
     networks:
       - default
-      - llm_net          # n8n llm-proxy(host.docker.internal:1234) 접속 — 워커 요약·/status 헬스
     restart: unless-stopped
 
   nginx:
@@ -77,8 +72,3 @@ services:
 
 networks:
   default:
-  jobs_shared:
-    external: true          # n8n 재연결용 공유 네트워크(Task 8에서 생성)
-  llm_net:
-    external: true
-    name: n8n-pjt_default   # n8n llm-proxy(host.docker.internal:1234 별칭)에 닿기 위함(수집 요약 LLM)

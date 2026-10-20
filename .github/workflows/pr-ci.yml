@@ -54,7 +54,6 @@ jobs:
           DATABASE_URL=postgresql://ci:ci-placeholder@postgres:5432/ci
           SEARCH_KEYWORDS=backend
           DISCORD_WEBHOOK_URL=
-          LLM_BASE_URL=
           JOB_PROXY_URL=
           JOB_PROXY_SECRET=
           EOF
