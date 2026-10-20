@@ -1,0 +1,62 @@
+name: PR CI
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  backend-tests:
+    name: backend-tests
+    runs-on: ubuntu-latest
+    container: python:3.12-slim
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install dependencies and run tests
+        run: pip install -e ".[dev]" -q && python -m pytest -q
+
+  frontend-tests-build:
+    name: frontend-tests-build
+    runs-on: ubuntu-latest
+    container: node:22-slim
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install dependencies, run tests and build
+        run: npm ci && npm test && npm run build
+
+  compose-config:
+    name: compose-config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Create non-secret CI environment
+        run: |
+          cat > .env <<'EOF'
+          HOST_UID=1001
+          POSTGRES_USER=ci
+          POSTGRES_PASSWORD=ci-placeholder
+          POSTGRES_DB=ci
+          JOBS_RO_PASSWORD=ci-readonly-placeholder
+          DATABASE_URL=postgresql://ci:ci-placeholder@postgres:5432/ci
+          SEARCH_KEYWORDS=backend
+          DISCORD_WEBHOOK_URL=
+          LLM_BASE_URL=
+          JOB_PROXY_URL=
+          JOB_PROXY_SECRET=
+          EOF
+      - name: Validate Compose configuration without starting services
+        run: docker compose --env-file .env config -q
