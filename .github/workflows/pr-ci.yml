@@ -43,6 +43,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run repository-root deployment regressions
+        run: python -m pip install pytest && python -m pytest -q tests/test_deployment_config.py
       - name: Create non-secret CI environment
         run: |
           cat > .env <<'EOF'
@@ -54,7 +59,6 @@ jobs:
           DATABASE_URL=postgresql://ci:ci-placeholder@postgres:5432/ci
           SEARCH_KEYWORDS=backend
           DISCORD_WEBHOOK_URL=
-          LLM_BASE_URL=
           JOB_PROXY_URL=
           JOB_PROXY_SECRET=
           EOF
