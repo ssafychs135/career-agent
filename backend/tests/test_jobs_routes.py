@@ -98,3 +98,24 @@ def test_list_jobs_applies_global_filters(monkeypatch):
     assert r.status_code == 200
     assert seen["allowed_regions"] == ["서울"]
     assert seen["hidden_companies"] == ["미스릴"]
+
+
+@pytest.mark.parametrize("source,job_id", [
+    ("wanted", "00123"), ("jumpit", "123"), ("jump-it", "abc-123_4"),
+    ("custom source", "공고 42"), ("wanted", "a?b#c"), ("wanted", "a:b"),
+    ("wanted", "a@b+"),
+])
+def test_detail_single_encoded_segment_roundtrip(monkeypatch, source, job_id):
+    """Mirror frontend segment encoding; no real HTTP, DB or upstream calls."""
+    from urllib.parse import quote
+
+    async def fake_get_job(conn, actual_source, actual_job_id):
+        assert (actual_source, actual_job_id) == (source, job_id)
+        return {"job": {"source": actual_source, "job_id": actual_job_id},
+                "companyResearch": None, "jobResearch": None}
+
+    monkeypatch.setattr(jobs_router, "get_job", fake_get_job)
+    path = f"/api/jobs/{quote(source, safe='')}/{quote(job_id, safe='')}"
+    r = TestClient(main.app).get(path)
+    assert r.status_code == 200
+    assert r.json()["job"] == {"source": source, "job_id": job_id}

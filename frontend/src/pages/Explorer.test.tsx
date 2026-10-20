@@ -182,3 +182,46 @@ test("selecting a region reveals a district (세부 지역) filter that narrows 
   await waitFor(() => expect(screen.getByText("뉴런웍스")).toBeTruthy());
   expect(screen.queryByText("파스텔로")).toBeNull();
 });
+
+test.each(["../../\\\\evil.example/x", "%252f", ".", "..", "%GG"])("unsafe API ID %j cannot navigate", async job_id => {
+  (getJobs as Mock).mockResolvedValue({ items: [job({ job_id })], total: 1 });
+  render(<MemoryRouter initialEntries={["/jobs"]}><Routes>
+    <Route path="/jobs" element={<Explorer />} />
+    <Route path="/jobs/:source/:jobId" element={<Explorer />} />
+  </Routes></MemoryRouter>);
+  fireEvent.click(await screen.findByText("뉴런웍스"));
+  const link = await screen.findByTestId("job-link");
+  expect((link as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(link);
+  expect(screen.queryByTestId("job-title")).toBeNull();
+});
+
+test.each(["%252e%252e", "%255c", "%25252f", "%25GG"])("unsafe deeplink %j never loads detail", async segment => {
+  const detail = vi.mocked(getJob).mockClear();
+  render(<MemoryRouter initialEntries={[`/jobs/wanted/${segment}`]}><Routes>
+    <Route path="/jobs/:source/:jobId" element={<Explorer />} />
+  </Routes></MemoryRouter>);
+  await screen.findByText("뉴런웍스");
+  expect(detail).not.toHaveBeenCalled();
+});
+
+test.each(["00123", "공고 42", "a?b#c", "a@b+"])("click and encoded deep link preserve ID %j", async job_id => {
+  (getJobs as Mock).mockResolvedValue({ items: [job({ job_id })], total: 1 });
+  (getJob as Mock).mockResolvedValue({ job: { ...job({ job_id }), title: "선택된 상세" }, companyResearch: null, jobResearch: null });
+  const view = render(<MemoryRouter initialEntries={["/jobs"]}><Routes>
+    <Route path="/jobs" element={<Explorer />} />
+    <Route path="/jobs/:source/:jobId" element={<Explorer />} />
+  </Routes></MemoryRouter>);
+  fireEvent.click(await screen.findByText("뉴런웍스"));
+  fireEvent.click(await screen.findByTestId("job-link"));
+  await screen.findByTestId("job-title");
+  expect(getJob).toHaveBeenCalledWith("wanted", job_id);
+  expect(screen.getByTestId("job-link").getAttribute("aria-current")).toBe("true");
+  view.unmount();
+  vi.mocked(getJob).mockClear();
+  render(<MemoryRouter initialEntries={[`/jobs/wanted/${encodeURIComponent(job_id)}`]}><Routes>
+    <Route path="/jobs/:source/:jobId" element={<Explorer />} />
+  </Routes></MemoryRouter>);
+  await screen.findByTestId("job-title");
+  expect(getJob).toHaveBeenCalledWith("wanted", job_id);
+});

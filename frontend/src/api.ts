@@ -1,3 +1,5 @@
+import { jobPath } from "./jobPath";
+
 export async function getHealth(): Promise<{ status: string }> {
   const r = await fetch("/api/health");
   if (!r.ok) throw new Error("health failed");
@@ -87,7 +89,9 @@ export async function getJobs(params: JobsFilters = {}): Promise<JobsPage> {
 }
 
 export async function getJob(source: string, jobId: string): Promise<JobDetailResponse> {
-  const r = await fetch(`/api/jobs/${encodeURIComponent(source)}/${encodeURIComponent(jobId)}`);
+  const path = jobPath(source, jobId);
+  if (path === null) throw new Error("유효하지 않은 공고 경로");
+  const r = await fetch(`/api${path}`);
   if (!r.ok) throw new Error("공고 조회 실패");
   return r.json();
 }

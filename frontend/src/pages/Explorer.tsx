@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { getJobs, type JobSummary } from "../api";
 import JobDetailView from "./JobDetailView";
 import RangeSlider from "../components/RangeSlider";
+import { jobPath, isJobSegment } from "../jobPath";
 
 const PAGE = 100; // /api/jobs limit cap
 const CAREER_MAX = 10; // 연차 슬라이더 상한(=이상, 무한대로 취급)
@@ -24,7 +25,11 @@ const cityKey = (city: string, dist: string) => `${city}␟${dist}`;
 type Company = { name: string; count: number; regions: string[]; pairs: string[]; hasResearch: boolean; careers: [number, number][] };
 
 export default function Explorer() {
-  const { source, jobId } = useParams();
+  const params = useParams();
+  const validDetail = !!params.source && !!params.jobId &&
+    isJobSegment(params.source) && isJobSegment(params.jobId);
+  const source = validDetail ? params.source : undefined;
+  const jobId = validDetail ? params.jobId : undefined;
   const navigate = useNavigate();
 
   const [jobs, setJobs] = useState<JobSummary[]>([]);
@@ -334,6 +339,7 @@ export default function Explorer() {
                 </div>
               )}
               {g.jobs.map((j) => {
+                const path = jobPath(j.source, j.job_id);
                 const on = j.source === source && j.job_id === jobId;
                 return (
                   <button
@@ -341,7 +347,8 @@ export default function Explorer() {
                     data-testid="job-link"
                     className={`item${on ? " on" : ""}`}
                     aria-current={on ? "true" : undefined}
-                    onClick={() => navigate(`/jobs/${j.source}/${j.job_id}`)}
+                    disabled={path === null}
+                    onClick={() => { if (path !== null) navigate(path); }}
                   >
                     <div className="name">{j.title}</div>
                     <div className="row" style={{ marginTop: 6 }}>
