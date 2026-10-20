@@ -1,0 +1,58 @@
+# PR 게이트 CI. main 머지 전에 Jenkins CI 단계와 같은 검사를 PR에서 먼저 돌린다.
+# Jenkins는 main push 후(=배포 직전)에만 테스트하므로, 깨진 코드가 main에 들어가는 것을 막지 못한다.
+# 이 워크플로우의 job 이름(backend-tests·frontend-tests·compose-config)을 main 보호 규칙의
+# 필수 통과 조건으로 등록하면, 실패한 PR은 관리자 토큰으로도 머지할 수 없다.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      # Jenkins·운영 이미지와 같은 python:3.12
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - run: pip install -e ".[dev]" -q
+      - run: python -m pytest -q
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      # Jenkins와 같은 node:22
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  compose-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # 실제 .env는 서버에만 있으므로 .env.example로 compose 문법·변수 치환만 검증한다.
+      - run: docker compose --env-file .env.example config -q
