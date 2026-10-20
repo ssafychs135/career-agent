@@ -1,6 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { createBrowserHistory, resolvePath } from "@remix-run/router";
-import { matchRoutes } from "react-router-dom";
+import { UNSAFE_createBrowserHistory as createBrowserHistory, resolvePath, matchRoutes } from "react-router-dom";
 import { isJobSegment, jobPath } from "./jobPath";
 import { getJob } from "./api";
 
@@ -38,7 +37,7 @@ test.each(["123", "00123", "abc-123_4", "jump-it", "공고 42", "a.b", "a:b", "a
     vi.unstubAllGlobals();
   });
 
-test("installed browser history reproduces old external-origin fallback only with mock location", () => {
+test("installed v7 history keeps the old attack same-origin even on a forced fallback, and the guard refuses it", () => {
   const assign = vi.fn();
   const pushState = vi.spyOn(window.history, "pushState").mockImplementation(() => {
     throw new DOMException("cross-origin", "SecurityError");
@@ -49,7 +48,8 @@ test("installed browser history reproduces old external-origin fallback only wit
   const payload = "../../\\\\evil.example/x";
   const oldPath = resolvePath(`/jobs/wanted/${payload}`);
   history.push(oldPath);
-  expect(new URL(assign.mock.calls[0][0], "https://app.example").origin).toBe("https://evil.example");
+  expect(assign).toHaveBeenCalledTimes(1);
+  expect(new URL(assign.mock.calls[0][0], "https://app.example").origin).toBe("https://app.example");
   assign.mockClear();
   expect(jobPath("wanted", payload)).toBeNull();
   expect(assign).not.toHaveBeenCalled();
