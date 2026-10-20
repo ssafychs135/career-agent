@@ -28,7 +28,7 @@ function Rail() {
 
 export default function App() {
   return (
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <BrowserRouter>
       <div className="shell">
         <Rail />
         <div className="content">
