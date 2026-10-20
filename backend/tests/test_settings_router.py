@@ -12,7 +12,7 @@ class FakeConn:
             self.store["saved"] = params
             # Return a row dict so put_settings can construct Settings
             return dict(zip(_COLUMNS + ['updated_at'], params + (None,)))
-        return None  # get은 기본값 경로
+        return self.store.get("row")
 
 
 def _app(conn):
@@ -31,6 +31,7 @@ async def test_get_returns_defaults_when_no_row():
         r = await c.get("/api/settings")
     assert r.status_code == 200
     assert r.json()["batch_size"] == 20
+    assert r.json()["summary_backend"] == "claude"
 
 
 async def test_put_validates_and_saves():
@@ -49,3 +50,42 @@ async def test_put_rejects_invalid():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
         r = await c.put("/api/settings", json=body)
     assert r.status_code == 422
+
+
+async def test_get_legacy_row_is_effective_claude_without_write_then_save_normalizes():
+    legacy = dict(SETTINGS_DEFAULTS, summary_backend="local", model="legacy-model")
+    store = {"row": legacy.copy()}
+    app = _app(FakeConn(store))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
+        r = await c.get("/api/settings")
+        assert r.status_code == 200
+        assert r.json()["summary_backend"] == "claude"
+        assert r.json()["model"] == "legacy-model"
+        assert store == {"row": legacy}
+        payload = r.json()
+        payload["batch_size"] = 30
+        saved = await c.put("/api/settings", json=payload)
+    assert saved.status_code == 200
+    assert store["saved"][_COLUMNS.index("summary_backend")] == "claude"
+    assert store["saved"][_COLUMNS.index("model")] == "legacy-model"
+    assert saved.json()["batch_size"] == 30
+
+
+async def test_put_legacy_backend_normalizes_and_preserves_required_model():
+    store = {}
+    async with AsyncClient(transport=ASGITransport(app=_app(FakeConn(store))), base_url="http://t") as c:
+        r = await c.put("/api/settings", json=dict(SETTINGS_DEFAULTS, summary_backend="local", model="old-model"))
+    assert r.status_code == 200
+    assert r.json()["summary_backend"] == "claude"
+    assert store["saved"][_COLUMNS.index("summary_backend")] == "claude"
+    assert store["saved"][_COLUMNS.index("model")] == "old-model"
+
+
+@pytest.mark.parametrize("invalid", [{"summary_backend": "gpt"}, {"summary_backend": ""},
+                                    {"summary_backend": None}, {"model": ""}, {"model": None}])
+async def test_put_invalid_legacy_fields_rejected_without_write(invalid):
+    store = {}
+    async with AsyncClient(transport=ASGITransport(app=_app(FakeConn(store))), base_url="http://t") as c:
+        r = await c.put("/api/settings", json=dict(SETTINGS_DEFAULTS, **invalid))
+    assert r.status_code == 422
+    assert "saved" not in store

@@ -16,7 +16,7 @@ class Conn:
 def _app(activity):
     app = FastAPI()
     app.state.activity = activity
-    app.state.http = object()
+    # No HTTP client: status must not probe local LLM or Claude readiness.
     app.include_router(status_router.router)
 
     async def _get_conn():
@@ -27,8 +27,6 @@ def _app(activity):
         return Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"], enabled=True))
     status_router.get_settings = fake_get_settings
 
-    async def fake_health(http, base_url=None): return True
-    status_router.llm_healthy = fake_health
     return app
 
 
@@ -41,5 +39,6 @@ async def test_status_shape():
     assert r.status_code == 200
     assert body["activity"]["worker"]["stage"] == "요약 중"
     assert body["counts"]["pending"] == 7
-    assert body["llm_health"] == "ok"
+    assert "llm_health" not in body
+    assert "claude_ready" not in body
     assert body["enabled"] is True

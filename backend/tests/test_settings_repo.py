@@ -15,7 +15,7 @@ def _valid(**over):
 
 
 def test_defaults_are_valid():
-    Settings(**SETTINGS_DEFAULTS)  # 검증 통과
+    assert Settings(**SETTINGS_DEFAULTS).summary_backend == "claude"
 
 
 def test_keywords_trimmed_and_nonempty():
@@ -130,3 +130,17 @@ def test_migration_defaults_match_settings_defaults():
     assert "research_model text NOT NULL DEFAULT ''" in ddl
     assert SETTINGS_DEFAULTS["summary_model"] == ""
     assert SETTINGS_DEFAULTS["research_model"] == ""
+
+
+def test_legacy_backend_normalizes_without_mutating_input():
+    legacy = _valid(summary_backend="local", model="legacy-model")
+    settings = Settings(**legacy)
+    assert settings.summary_backend == "claude"
+    assert legacy["summary_backend"] == "local"
+    assert settings.model == "legacy-model"
+
+
+@pytest.mark.parametrize("model", ["", None])
+def test_legacy_model_still_requires_nonempty_string(model):
+    with pytest.raises(ValidationError):
+        Settings(**_valid(model=model))

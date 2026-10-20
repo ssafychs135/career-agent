@@ -1,28 +1,15 @@
 import pytest
-from app.collect.health import llm_healthy
 from app.collect.summarize import summarize, extract_stacks, SUMMARY_SYSTEM_PROMPT
 from app.settings_repo import Settings, SETTINGS_DEFAULTS
+from app.collect.config import SUMMARY_TIMEOUT
 
 
-class Resp:
-    def __init__(self, code=200, payload=None): self.status_code = code; self._p = payload
-    def json(self): return self._p
+class NoHttp:
+    async def get(self, *args, **kwargs):
+        raise AssertionError("summary must not make HTTP requests")
 
-
-class Http:
-    def __init__(self, get_resp=None, post_resp=None): self._g, self._p = get_resp, post_resp; self.posted = None
-    async def get(self, url, timeout=None): return self._g
-    async def post(self, url, json=None, timeout=None): self.posted = json; return self._p
-
-
-async def test_llm_healthy_true_on_200():
-    assert await llm_healthy(Http(get_resp=Resp(200)), "http://x") is True
-
-
-async def test_llm_healthy_false_on_error():
-    class Boom:
-        async def get(self, url, timeout=None): raise RuntimeError("down")
-    assert await llm_healthy(Boom(), "http://x") is False
+    async def post(self, *args, **kwargs):
+        raise AssertionError("summary must not make HTTP requests")
 
 
 def test_extract_stacks():
@@ -39,20 +26,26 @@ def test_extract_stacks_tolerates_markdown_label():
     assert extract_stacks("요약\n### 기술스택: Go") == ["Go"]
 
 
-async def test_summarize_local_calls_lmstudio():
-    http = Http(post_resp=Resp(200, {"choices": [{"message": {"content": "3줄 요약"}}]}))
-    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"], summary_backend="local"))
-    out = await summarize("공고 프롬프트", s, http=http)
+@pytest.mark.parametrize("backend", ["local", "claude"])
+async def test_summarize_legacy_and_current_settings_use_claude_only(backend):
+    calls = []
+    async def runner(prompt, **kwargs):
+        calls.append((prompt, kwargs))
+        return "3줄 요약"
+    s = Settings(**dict(SETTINGS_DEFAULTS, summary_backend=backend))
+    step = object()
+    out = await summarize("공고 프롬프트", s, http=NoHttp(), model="opus",
+                          runner=runner, on_step=step)
     assert out == "3줄 요약"
-    assert http.posted["model"] == s.model
-    assert http.posted["messages"][0]["content"] == SUMMARY_SYSTEM_PROMPT
+    assert calls[0][0] == f"{SUMMARY_SYSTEM_PROMPT}\n\n공고 프롬프트"
+    assert calls[0][1] == {"model": "opus", "timeout": SUMMARY_TIMEOUT, "on_step": step}
 
 
 async def test_summarize_claude_uses_runner():
     calls = {}
     async def fake_runner(prompt, *, on_step=None, **kw): calls["prompt"] = prompt; return "클로드 요약"
     s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"], summary_backend="claude"))
-    out = await summarize("공고 프롬프트", s, http=Http(), runner=fake_runner)
+    out = await summarize("공고 프롬프트", s, http=NoHttp(), runner=fake_runner)
     assert out == "클로드 요약"
     assert "공고 프롬프트" in calls["prompt"]
 
@@ -65,14 +58,11 @@ async def test_summarize_claude_forwards_model():
         return "클로드 요약"
 
     s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"], summary_backend="claude"))
-    await summarize("공고", s, http=Http(), model="haiku", runner=fake_runner)
+    await summarize("공고", s, http=NoHttp(), model="haiku", runner=fake_runner)
     assert calls["model"] == "haiku"
 
 
-async def test_summarize_local_ignores_model_arg():
-    """local 분기는 티어와 무관 — settings.model(LM Studio 모델명)을 그대로 쓴다."""
-    http = Http(post_resp=Resp(200, {"choices": [{"message": {"content": "3줄"}}]}))
-    s = Settings(**dict(SETTINGS_DEFAULTS, keywords=["x"], summary_backend="local"))
-    out = await summarize("공고", s, http=http, model="opus")
-    assert out == "3줄"
-    assert http.posted["model"] == s.model
+async def test_summarize_empty_claude_response_is_retryable():
+    async def runner(*args, **kwargs):
+        return ""
+    assert await summarize("공고", Settings(**SETTINGS_DEFAULTS), http=NoHttp(), runner=runner) is None

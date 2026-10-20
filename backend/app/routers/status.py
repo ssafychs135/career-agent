@@ -2,7 +2,6 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 
-from app.collect.health import llm_healthy
 from app.db import get_conn
 from app.settings_repo import get_settings
 
@@ -17,7 +16,6 @@ async def read_status(request: Request, conn: Any = Depends(get_conn)):
     research_running = await conn.fetchval(
         "SELECT count(*) FROM job_research WHERE status='running'"
     ) or 0
-    healthy = await llm_healthy(request.app.state.http)
     return {
         "activity": request.app.state.activity.snapshot(),
         "counts": {
@@ -27,7 +25,6 @@ async def read_status(request: Request, conn: Any = Depends(get_conn)):
             "skipped": counts.get("skipped", 0),
             "research_running": research_running,
         },
-        "llm_health": "ok" if healthy else "down",
         "enabled": settings.enabled,
         "next_ticks": {"collect_hour": settings.collect_hour,
                        "worker_interval_min": settings.worker_interval_min},
