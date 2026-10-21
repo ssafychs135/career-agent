@@ -56,7 +56,7 @@ def _decode(raw: bytes) -> dict:
     try:
         value = json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs,
                            parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
-    except (UnicodeError, ValueError):
+    except (UnicodeError, ValueError, RecursionError):
         raise SDKInterrupted("protocol_error") from None
     if not isinstance(value, dict):
         raise SDKInterrupted("protocol_error")
@@ -86,6 +86,22 @@ def _request(value: dict) -> bytes:
 
 
 async def _exchange(argv: Sequence[str], request: dict, *, home: str, timeout: float = 120, on_step=None) -> str:
+    """Sanitize all phases, including spawn, callbacks and cleanup."""
+    code = "internal"
+    try:
+        return await _exchange_impl(argv, request, home=home, timeout=timeout, on_step=on_step)
+    except asyncio.CancelledError:
+        raise
+    except SDKInterrupted as error:
+        if isinstance(error.code, str) and error.code in CODES:
+            code = error.code
+    except Exception:
+        pass
+    # Outside the handler: no original exception context or traceback leakage.
+    raise SDKInterrupted(code) from None
+
+
+async def _exchange_impl(argv: Sequence[str], request: dict, *, home: str, timeout: float = 120, on_step=None) -> str:
     """Internal fixture transport. argv is trusted host configuration, NOT wire data.
 
     Never used by production callers. Tests use only sys.executable and test-owned
@@ -102,7 +118,10 @@ async def _exchange(argv: Sequence[str], request: dict, *, home: str, timeout: f
     try:
         proc = await asyncio.shield(spawning)
     except asyncio.CancelledError:
-        proc = await spawning
+        try:
+            proc = await spawning
+        except Exception:
+            raise asyncio.CancelledError from None
         spawn_cancelled = True
     terminal = None
     result = None
@@ -196,6 +215,7 @@ async def _exchange(argv: Sequence[str], request: dict, *, home: str, timeout: f
         except (BrokenPipeError, ConnectionResetError):
             pass
 
+    cancelled = False
     try:
         if spawn_cancelled:
             raise asyncio.CancelledError
@@ -205,6 +225,9 @@ async def _exchange(argv: Sequence[str], request: dict, *, home: str, timeout: f
         if terminal != "result":
             raise SDKInterrupted(terminal)
         return result
+    except asyncio.CancelledError:
+        cancelled = True
+        raise
     except asyncio.TimeoutError:
         raise SDKInterrupted("internal") from None
     finally:
@@ -213,5 +236,12 @@ async def _exchange(argv: Sequence[str], request: dict, *, home: str, timeout: f
         try:
             await asyncio.shield(cleanup_task)
         except asyncio.CancelledError:
-            await cleanup_task
+            try:
+                await cleanup_task
+            except Exception:
+                pass
+            raise
+        except Exception:
+            if cancelled:
+                raise asyncio.CancelledError from None
             raise

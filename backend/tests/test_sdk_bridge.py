@@ -4,6 +4,7 @@ import json
 import os
 import signal
 import sys
+import traceback
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -145,9 +146,10 @@ while True: time.sleep(1)
 async def test_callback_failure_cleans_process(tmp_path):
     step = {"v": 1, "id": "test_1", "type": "step", "label": "working"}
     def fail(_):
-        raise ValueError("callback")
-    with pytest.raises(ValueError, match="callback"):
+        raise ValueError("SYNTHETIC_SENTINEL")
+    with pytest.raises(sdk.SDKInterrupted) as error:
         await run(tmp_path, output(step, RESULT), on_step=fail)
+    assert_safe_error(error.value, "internal")
 
 
 @pytest.mark.parametrize("field,value", [("v", True), ("id", "bad id"), ("task", "Bash"), ("model", "api"), ("prompt", "x" * (sdk.MAX_TEXT + 1)), ("env", {})], ids=lambda v: str(v)[:30])
@@ -196,3 +198,81 @@ async def test_unpaired_surrogate_result_rejected(tmp_path):
     raw = '{"v":1,"id":"test_1","type":"result","text":"\\ud800"}\n'
     with pytest.raises(sdk.SDKInterrupted, match='protocol_error'):
         await run(tmp_path, f'import sys\nsys.stdout.write({raw!r})')
+
+
+def assert_safe_error(error, code):
+    assert type(error) is sdk.SDKInterrupted
+    assert error.code == code
+    assert error.__context__ is None
+    assert error.__cause__ is None
+    assert "SYNTHETIC_SENTINEL" not in "".join(traceback.format_exception(error))
+
+
+@pytest.mark.asyncio
+async def test_deep_json_is_protocol_interruption(tmp_path):
+    raw = '{"v":1,"id":"test_1","type":"result","text":' + '[' * 10000 + '0' + ']' * 10000 + '}'
+    assert len(raw.encode()) + 1 < sdk.MAX_LINE
+    with pytest.raises(sdk.SDKInterrupted) as error:
+        await run(tmp_path, "import sys;sys.stdin.read();print(" + repr(raw) + ")")
+    assert_safe_error(error.value, "protocol_error")
+
+
+@pytest.mark.asyncio
+async def test_spawn_path_is_sanitized(tmp_path):
+    executable = str(tmp_path / "SYNTHETIC_SENTINEL")
+    with pytest.raises(sdk.SDKInterrupted) as error:
+        await sdk._exchange([executable], REQ, home=str(tmp_path))
+    assert_safe_error(error.value, "internal")
+
+
+@pytest.mark.asyncio
+async def test_transport_cleanup_exception_boundary():
+    with patch.object(sdk, "_exchange_impl", new=AsyncMock(side_effect=OSError("SYNTHETIC_SENTINEL"))):
+        with pytest.raises(sdk.SDKInterrupted) as error:
+            await sdk._exchange([sys.executable], REQ, home="/tmp")
+    assert_safe_error(error.value, "internal")
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+@pytest.mark.asyncio
+async def test_real_cleanup_failure_and_cancellation(tmp_path, cancel):
+    original = asyncio.create_subprocess_exec
+    spawned = []
+    async def spawn(*args, **kwargs):
+        proc = await original(*args, **kwargs)
+        spawned.append(proc)
+        proc.stdin.wait_closed = AsyncMock(side_effect=OSError("SYNTHETIC_SENTINEL"))
+        return proc
+    with patch("asyncio.create_subprocess_exec", side_effect=spawn):
+        task = asyncio.create_task(run(tmp_path, "import sys,time;sys.stdin.read();time.sleep(10)" if cancel else output(RESULT)))
+        if cancel:
+            for _ in range(100):
+                if spawned:
+                    break
+                await asyncio.sleep(0.01)
+            assert spawned
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        else:
+            with pytest.raises(sdk.SDKInterrupted) as error:
+                await task
+            assert_safe_error(error.value, "internal")
+    assert spawned[0].returncode is not None
+    with pytest.raises(ProcessLookupError):
+        os.kill(spawned[0].pid, 0)
+
+
+@pytest.mark.asyncio
+async def test_cancellation_during_failed_spawn():
+    entered = asyncio.Event()
+    async def fail(*args, **kwargs):
+        entered.set()
+        await asyncio.sleep(0.05)
+        raise OSError("SYNTHETIC_SENTINEL")
+    with patch("asyncio.create_subprocess_exec", side_effect=fail):
+        task = asyncio.create_task(sdk._exchange([sys.executable], REQ, home="/tmp"))
+        await entered.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
