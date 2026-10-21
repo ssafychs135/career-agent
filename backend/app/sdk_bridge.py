@@ -6,6 +6,7 @@ source attestation, packaging and caller parity before connecting this bridge.
 """
 import asyncio
 import json
+import inspect
 import os
 import re
 import signal
@@ -88,16 +89,19 @@ def _request(value: dict) -> bytes:
 async def _exchange(argv: Sequence[str], request: dict, *, home: str, timeout: float = 120, on_step=None) -> str:
     """Sanitize all phases, including spawn, callbacks and cleanup."""
     code = "internal"
+    cancelled = False
     try:
         return await _exchange_impl(argv, request, home=home, timeout=timeout, on_step=on_step)
     except asyncio.CancelledError:
-        raise
+        cancelled = True
     except SDKInterrupted as error:
         if isinstance(error.code, str) and error.code in CODES:
             code = error.code
     except Exception:
         pass
     # Outside the handler: no original exception context or traceback leakage.
+    if cancelled:
+        raise asyncio.CancelledError from None
     raise SDKInterrupted(code) from None
 
 
@@ -157,7 +161,9 @@ async def _exchange_impl(argv: Sequence[str], request: dict, *, home: str, timeo
                     if not isinstance(label, str) or label not in LABELS or (request["task"] == "summary" and label != "working"):
                         raise SDKInterrupted("protocol_error")
                     if on_step:
-                        on_step(LABELS[label])
+                        step_result = on_step(LABELS[label])
+                        if inspect.isawaitable(step_result):
+                            await step_result
                 elif kind == "result" and set(event) == {"v", "id", "type", "text"}:
                     result = event["text"]
                     if not isinstance(result, str) or _utf8_size(result) > MAX_TEXT:

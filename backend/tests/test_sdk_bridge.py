@@ -1,5 +1,6 @@
 """Self-contained offline fixtures: no Node, SDK, repository root or login."""
 import asyncio
+import gc
 import json
 import os
 import signal
@@ -132,8 +133,9 @@ while True: time.sleep(1)
     pids = [int(v) for v in marker.read_text().split()]
     if cancel:
         task.cancel()
-        with pytest.raises(asyncio.CancelledError):
+        with pytest.raises(asyncio.CancelledError) as error:
             await task
+        assert_safe_cancel(error.value)
     else:
         with pytest.raises(sdk.SDKInterrupted):
             await task
@@ -252,8 +254,9 @@ async def test_real_cleanup_failure_and_cancellation(tmp_path, cancel):
                 await asyncio.sleep(0.01)
             assert spawned
             task.cancel()
-            with pytest.raises(asyncio.CancelledError):
+            with pytest.raises(asyncio.CancelledError) as error:
                 await task
+            assert_safe_cancel(error.value)
         else:
             with pytest.raises(sdk.SDKInterrupted) as error:
                 await task
@@ -274,5 +277,68 @@ async def test_cancellation_during_failed_spawn():
         task = asyncio.create_task(sdk._exchange([sys.executable], REQ, home="/tmp"))
         await entered.wait()
         task.cancel()
-        with pytest.raises(asyncio.CancelledError):
+        with pytest.raises(asyncio.CancelledError) as error:
             await task
+        assert_safe_cancel(error.value)
+
+
+def assert_safe_cancel(error):
+    assert type(error) is asyncio.CancelledError
+    assert error.__context__ is None
+    assert error.__cause__ is None
+    assert "SYNTHETIC_SENTINEL" not in "".join(traceback.format_exception(error))
+
+
+@pytest.mark.parametrize("as_task", [False, True])
+@pytest.mark.parametrize("fail", [False, True])
+@pytest.mark.asyncio
+async def test_owned_awaitable_callbacks(tmp_path, as_task, fail, recwarn):
+    loop = asyncio.get_running_loop()
+    previous = loop.get_exception_handler()
+    reports = []
+    labels = []
+    async def callback(label):
+        await asyncio.sleep(0)
+        labels.append(label)
+        if fail:
+            raise ValueError("SYNTHETIC_SENTINEL")
+    on_step = (lambda label: asyncio.create_task(callback(label))) if as_task else callback
+    step = {"v": 1, "id": "test_1", "type": "step", "label": "working"}
+    loop.set_exception_handler(lambda loop, context: reports.append(context))
+    try:
+        if fail:
+            with pytest.raises(sdk.SDKInterrupted) as error:
+                await run(tmp_path, output(step, RESULT), on_step=on_step)
+            assert_safe_error(error.value, "internal")
+        else:
+            assert await run(tmp_path, output(step, RESULT), on_step=on_step) == "fixture result"
+        assert labels == ["분석·작성 중"]
+        await asyncio.sleep(0)
+        gc.collect()
+        await asyncio.sleep(0)
+        assert reports == []
+        assert not [warning for warning in recwarn if issubclass(warning.category, RuntimeWarning)]
+    finally:
+        loop.set_exception_handler(previous)
+
+
+@pytest.mark.parametrize("as_task", [False, True])
+@pytest.mark.asyncio
+async def test_cancel_owned_callback(tmp_path, as_task):
+    entered = asyncio.Event()
+    finished = asyncio.Event()
+    async def callback(_):
+        entered.set()
+        try:
+            await asyncio.sleep(10)
+        finally:
+            finished.set()
+    on_step = (lambda label: asyncio.create_task(callback(label))) if as_task else callback
+    step = {"v": 1, "id": "test_1", "type": "step", "label": "working"}
+    task = asyncio.create_task(run(tmp_path, output(step, RESULT), on_step=on_step))
+    await asyncio.wait_for(entered.wait(), 2)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError) as error:
+        await task
+    assert_safe_cancel(error.value)
+    assert finished.is_set()
